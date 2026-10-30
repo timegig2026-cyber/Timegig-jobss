@@ -1,0 +1,6 @@
+{
+  "name": "Live Map Locator",
+  "description": "A minimal full-screen map template showing your real-time location using OpenStreetMap.",
+  "requestFramePermissions": ["geolocation", "camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,89 @@
+{
+  "entities": {
+    "user": {
+      "title": "User",
+      "description": "User profile and authentication status",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "surname": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "isApproved": { "type": "boolean" },
+        "role": { "type": "string", "enum": ["User", "Tenant"] },
+        "contactInfo": { "type": "string" },
+        "socialLinks": { "type": "array" },
+        "location": { "type": "string" },
+        "workTrade": { "type": "string" },
+        "experience": { "type": "string" },
+        "references": { "type": "string" },
+        "lastLogoUpdate": { "type": "string", "format": "date-time" },
+        "profileLocked": { "type": "boolean" }
+      },
+      "required": ["uid", "email"]
+    },
+    "verification": {
+      "title": "Verification Submission",
+      "description": "Verification data submitted by users for approval",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "selfie": { "type": "string" },
+        "idDoc": { "type": "string" },
+        "pop": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "plan": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "selfie", "idDoc", "pop", "status"]
+    },
+    "stats": {
+      "title": "Platform Stats",
+      "description": "Financial and referral statistics",
+      "type": "object",
+      "properties": {
+        "tenantProfit": { "type": "number" },
+        "userProfit": { "type": "number" },
+        "totalReferrals": { "type": "number" }
+      }
+    },
+    "gig": {
+      "title": "Gig",
+      "description": "Gig post",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "description": { "type": "string" },
+        "budget": { "type": "number" },
+        "contactNumber": { "type": "string" },
+        "date": { "type": "string" },
+        "time": { "type": "string" },
+        "isImmediate": { "type": "boolean" },
+        "location": { "type": "array" },
+        "experienceNeeded": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "description", "location"]
+    }
+  },
+  "firestore": {
+    "users": {
+      "schema": "user",
+      "description": "Collection of user profiles"
+    },
+    "verifications": {
+      "schema": "verification",
+      "description": "Collection of verification submissions"
+    },
+    "system": {
+      "schema": "stats",
+      "description": "Global system statistics"
+    },
+    "gigs": {
+      "schema": "gig",
+      "description": "Collection of gig posts"
+    }
+  }
+}

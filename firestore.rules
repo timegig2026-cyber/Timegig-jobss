@@ -1,0 +1,66 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+    
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+    
+    function isTenant() {
+      return isSignedIn() && getUserData().role == 'Tenant';
+    }
+
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Users collection
+    match /users/{userId} {
+      allow read: if isSignedIn() && (isOwner(userId) || isTenant());
+      allow create: if isOwner(userId);
+      allow update: if isSignedIn() && (
+        // User updating their own profile
+        isOwner(userId) ||
+        // Tenant approving a user
+        isTenant()
+      );
+    }
+
+    // Verifications collection
+    match /verifications/{verificationId} {
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isTenant());
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update: if isTenant() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'isViewed']);
+    }
+
+    // Gigs collection
+    match /gigs/{gigId} {
+      allow read: if true;
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+
+    // System stats
+    match /system/{docId} {
+      allow read: if true;
+      allow write: if isTenant();
+    }
+    // Applications collection
+    match /applications/{appId} {
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid);
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update: if isSignedIn(); // Simplified for now to allow status updates
+    }
+    
+  }
+}
