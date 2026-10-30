@@ -141,7 +141,10 @@ export default function App() {
     experience: '',
     reference: '',
     socialLinks: [''],
-    applicationChances: 5
+    applicationChances: 5,
+    referrerId: '',
+    tenantProfit: 0,
+    userProfit: 0
   });
 
   // Gigs State
@@ -216,7 +219,9 @@ export default function App() {
             reference: data.reference || '',
             socialLinks: data.socialLinks || [''],
             applicationChances: data.applicationChances ?? 5,
-            referrerId: data.referrerId || ''
+            referrerId: data.referrerId || '',
+            tenantProfit: data.tenantProfit ?? 0,
+            userProfit: data.userProfit ?? 0
           });
           if (data.photoURL) setSelfieImage(data.photoURL);
         } else {
@@ -231,7 +236,9 @@ export default function App() {
             isApproved: firebaseUser.email === 'timegig2026@gmail.com',
             createdAt: serverTimestamp(),
             applicationChances: 5,
-            referrerId: referrerId
+            referrerId: referrerId,
+            tenantProfit: 0,
+            userProfit: 0
           };
           await setDoc(userDocRef, initialData);
           setUserRole(initialData.role as 'User' | 'Tenant');
@@ -1101,15 +1108,11 @@ export default function App() {
                     <LayoutGrid className="w-12 h-12 text-white/10 group-hover:text-white/20 transition-all duration-700 rotate-12 group-hover:rotate-0" />
                   </div>
                   <span className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2 block">Total Profit Balance</span>
-                  <div className="text-5xl font-black text-white tracking-tighter mb-8">R{(stats.tenantProfit + stats.userProfit).toFixed(2)}</div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="text-5xl font-black text-white tracking-tighter mb-8">R{((profileData as any).tenantProfit || 0).toFixed(2)}</div>
+                  <div className="grid grid-cols-1 gap-4">
                     <div className="bg-white/5 rounded-2xl p-4 border border-white/10">
-                      <span className="text-gray-500 text-[9px] font-black uppercase tracking-widest mb-1 block">Tenant Sub Profit</span>
-                      <span className="text-lg font-black text-emerald-400">R{stats.tenantProfit.toFixed(2)}</span>
-                    </div>
-                    <div className="bg-white/5 rounded-2xl p-4 border border-white/10">
-                      <span className="text-gray-500 text-[9px] font-black uppercase tracking-widest mb-1 block">User Sub Profit</span>
-                      <span className="text-lg font-black text-blue-400">R{stats.userProfit.toFixed(2)}</span>
+                      <span className="text-gray-500 text-[9px] font-black uppercase tracking-widest mb-1 block">Referral Profit</span>
+                      <span className="text-2xl font-black text-emerald-400">R{((profileData as any).tenantProfit || 0).toFixed(2)}</span>
                     </div>
                   </div>
                 </div>
@@ -1232,16 +1235,21 @@ export default function App() {
                                 isViewed: true 
                               });
                               
-                              // Update platform stats
-                              const statsRef = doc(db, 'system', 'platform_stats');
-                              const statsDoc = await getDoc(statsRef);
-                              if (statsDoc.exists()) {
-                                const currentStats = statsDoc.data();
-                                const profit = 100; // Assume a standard subscription profit
-                                await updateDoc(statsRef, {
-                                  tenantProfit: (currentStats.tenantProfit || 0) + profit,
-                                  userProfit: (currentStats.userProfit || 0) + profit,
-                                });
+                              // Credit tenant profit directly to tenant profile
+                              if (user) {
+                                const tenantDocRef = doc(db, 'users', user.uid);
+                                const tenantDoc = await getDoc(tenantDocRef);
+                                const profit = 100; // Standard referral subscription profit
+                                if (tenantDoc.exists()) {
+                                  const currentTenantProfit = tenantDoc.data().tenantProfit || 0;
+                                  await updateDoc(tenantDocRef, {
+                                    tenantProfit: currentTenantProfit + profit
+                                  });
+                                  setProfileData(prev => ({
+                                    ...prev,
+                                    tenantProfit: currentTenantProfit + profit
+                                  }));
+                                }
                               }
                             }
                             setReferralView(null);
@@ -1503,41 +1511,41 @@ export default function App() {
       {/* Bottom Menu Bar */}
       <div className="h-14 bg-white border-t border-gray-100 flex items-center justify-around px-4 z-[3000] shrink-0">
         {!user ? (
-           <button onClick={() => { setVerificationStep(null); setActiveTab('auth'); }} className="flex flex-col items-center gap-0.5 text-blue-600 transition-all active:scale-90">
+           <button onClick={() => { setVerificationStep(null); setActiveTab('auth'); }} className="flex flex-col items-center gap-0.5 text-black transition-all active:scale-90">
              <LogIn className={`w-7 h-7 ${activeTab === 'auth' ? 'stroke-[3]' : 'stroke-[2]'}`} />
              <span className="text-[9px] font-bold uppercase tracking-[0.1em]">Sign-In</span>
            </button>
         ) : (
           <>
             {userRole === 'Tenant' && (
-              <button onClick={() => { setVerificationStep(null); setActiveTab('tenant'); setShowReferralList(false); setReferralView(null); }} className="flex flex-col items-center gap-0.5 text-blue-500 transition-all active:scale-90">
+              <button onClick={() => { setVerificationStep(null); setActiveTab('tenant'); setShowReferralList(false); setReferralView(null); }} className="flex flex-col items-center gap-0.5 text-black transition-all active:scale-90">
                 <LayoutGrid className={`w-5 h-5 ${activeTab === 'tenant' ? 'stroke-[3]' : 'stroke-[2]'}`} />
                 <span className="text-[9px] font-bold uppercase tracking-[0.1em]">Tenant</span>
               </button>
             )}
     
-            <button onClick={() => { setActiveTab('map'); setVerificationStep(null); }} className="flex flex-col items-center gap-0.5 text-emerald-500 transition-all active:scale-90">
+            <button onClick={() => { setActiveTab('map'); setVerificationStep(null); }} className="flex flex-col items-center gap-0.5 text-black transition-all active:scale-90">
               <LocateFixed className={`w-7 h-7 ${activeTab === 'map' ? 'stroke-[3]' : 'stroke-[2]'}`} />
               <span className="text-[9px] font-bold uppercase tracking-[0.1em]">GiGs</span>
             </button>
     
-            {!isApproved && (
-              <button onClick={() => { setVerificationStep(null); setActiveTab('activation'); }} className="flex flex-col items-center gap-0.5 text-amber-500 transition-all active:scale-90">
-                <Zap className={`w-5 h-5 ${activeTab === 'activation' ? 'fill-amber-500 stroke-[2]' : 'stroke-[2]'}`} />
+            {!isApproved && !profileData.name && (
+              <button onClick={() => { setVerificationStep(null); setActiveTab('activation'); }} className="flex flex-col items-center gap-0.5 text-black transition-all active:scale-90">
+                <Zap className={`w-5 h-5 ${activeTab === 'activation' ? 'fill-black stroke-[2]' : 'stroke-[2]'}`} />
                 <span className="text-[9px] font-bold uppercase tracking-[0.1em]">Activation</span>
               </button>
             )}
     
             {isApproved && userRole === 'User' && (
-              <button onClick={() => { setVerificationStep(null); setActiveTab('tenant'); }} className="flex flex-col items-center gap-0.5 text-blue-500 transition-all active:scale-90">
+              <button onClick={() => { setVerificationStep(null); setActiveTab('tenant'); }} className="flex flex-col items-center gap-0.5 text-black transition-all active:scale-90">
                 <Users className={`w-5 h-5 ${activeTab === 'tenant' ? 'stroke-[3]' : 'stroke-[2]'}`} />
                 <span className="text-[9px] font-bold uppercase tracking-[0.1em]">Seekers</span>
               </button>
             )}
     
-            <button onClick={() => { setVerificationStep(null); setActiveTab('profile'); }} className="flex flex-col items-center gap-0.5 text-purple-500 transition-all active:scale-90">
+            <button onClick={() => { setVerificationStep(null); setActiveTab('profile'); }} className="flex flex-col items-center gap-0.5 text-black transition-all active:scale-90">
               {selfieImage ? (
-                <img src={selfieImage} alt="Profile" className={`w-6 h-6 rounded-full object-cover ${activeTab === 'profile' ? 'border-2 border-purple-500' : 'border border-purple-200'}`} />
+                <img src={selfieImage} alt="Profile" className={`w-6 h-6 rounded-full object-cover ${activeTab === 'profile' ? 'border-2 border-black' : 'border border-gray-300'}`} />
               ) : (
                 <User className={`w-5 h-5 ${activeTab === 'profile' ? 'stroke-[3]' : 'stroke-[2]'}`} />
               )}
