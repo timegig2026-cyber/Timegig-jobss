@@ -702,7 +702,7 @@ export default function App() {
   };
 
   return (
-    <div className="h-screen w-screen overflow-hidden flex flex-col relative bg-gray-50 font-sans">
+    <div className="h-[100dvh] w-screen overflow-hidden flex flex-col relative bg-gray-50 font-sans">
       {/* Floating Search Bar */}
       {activeTab === 'map' && (
         <div className="absolute top-4 left-4 right-4 z-[2000] flex flex-col gap-2 pointer-events-none">
