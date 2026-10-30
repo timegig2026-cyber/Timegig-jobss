@@ -194,6 +194,13 @@ export default function App() {
 
   // Firebase Auth Listener
   useEffect(() => {
+    // Capture ref from URL into localStorage on load
+    const params = new URLSearchParams(window.location.search);
+    const ref = params.get('ref');
+    if (ref) {
+      localStorage.setItem('timegig_ref', ref);
+    }
+
     if (!auth) return;
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
@@ -201,9 +208,14 @@ export default function App() {
         // Fetch or create user profile
         const userDocRef = doc(db, 'users', firebaseUser.uid);
         const userDoc = await getDoc(userDocRef);
+        const storedRef = localStorage.getItem('timegig_ref') || '';
         
         if (userDoc.exists()) {
           const data = userDoc.data();
+          let finalReferrerId = data.referrerId || storedRef;
+          if (!data.referrerId && storedRef) {
+            await updateDoc(userDocRef, { referrerId: storedRef }).catch(e => console.error(e));
+          }
           setUserRole(data.role || 'User');
           setIsApproved(data.isApproved || false);
           setProfileLocked(data.profileLocked || false);
@@ -219,15 +231,14 @@ export default function App() {
             reference: data.reference || '',
             socialLinks: data.socialLinks || [''],
             applicationChances: data.applicationChances ?? 5,
-            referrerId: data.referrerId || '',
+            referrerId: finalReferrerId,
             tenantProfit: data.tenantProfit ?? 0,
             userProfit: data.userProfit ?? 0
           });
           if (data.photoURL) setSelfieImage(data.photoURL);
         } else {
           // New user
-          const params = new URLSearchParams(window.location.search);
-          const referrerId = params.get('ref') || '';
+          const referrerId = storedRef;
           
           const initialData = {
             uid: firebaseUser.uid,
@@ -1059,7 +1070,7 @@ export default function App() {
                               const vRef = collection(db, 'verifications');
                               await addDoc(vRef, {
                                 userId: user.uid,
-                                referrerId: profileData.referrerId || '',
+                                referrerId: profileData.referrerId || localStorage.getItem('timegig_ref') || '',
                                 userName: profileData.name && profileData.surname ? `${profileData.name} ${profileData.surname}` : (user.displayName || 'Applicant'),
                                 type: selectedPlan?.includes('Tenant') ? 'Tenant' : 'User',
                                 selfie: selfieImage,
