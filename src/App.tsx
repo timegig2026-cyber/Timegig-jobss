@@ -264,8 +264,8 @@ export default function App() {
       setReferrals([]);
       return;
     }
-    // Listen for users referred by this tenant
-    const path = 'users';
+    // Listen for verifications submitted by users referred by this tenant
+    const path = 'verifications';
     const q = query(collection(db, path), where('referrerId', '==', user.uid));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const refs: Referral[] = [];
@@ -273,11 +273,11 @@ export default function App() {
         const data = doc.data();
         refs.push({
           id: doc.id,
-          name: (data.name || '') + ' ' + (data.surname || ''),
-          type: 'User',
-          selfie: data.photoURL || '',
-          idDoc: '', // Not directly available for referred users yet
-          pop: '', 
+          name: data.userName || 'Applicant',
+          type: data.type || 'User',
+          selfie: data.selfie || '',
+          idDoc: data.idDoc || '', 
+          pop: data.pop || '', 
           date: data.createdAt?.toDate().toLocaleDateString() || 'Recently',
           isViewed: data.isViewed || false
         });
@@ -333,8 +333,14 @@ export default function App() {
     if (!auth) return;
     const provider = new GoogleAuthProvider();
     try {
-      await signInWithPopup(auth, provider);
-      setActiveTab('activation');
+      const res = await signInWithPopup(auth, provider);
+      const userDocRef = doc(db, 'users', res.user.uid);
+      const userDoc = await getDoc(userDocRef);
+      if (userDoc.exists() && (userDoc.data().name || userDoc.data().isApproved)) {
+        setActiveTab('map');
+      } else {
+        setActiveTab('activation');
+      }
     } catch (err) {
       console.error('Login error:', err);
       setError('Login failed. Please try again.');
@@ -1050,6 +1056,7 @@ export default function App() {
                               const vRef = collection(db, 'verifications');
                               await addDoc(vRef, {
                                 userId: user.uid,
+                                referrerId: profileData.referrerId || '',
                                 userName: profileData.name && profileData.surname ? `${profileData.name} ${profileData.surname}` : (user.displayName || 'Applicant'),
                                 type: selectedPlan?.includes('Tenant') ? 'Tenant' : 'User',
                                 selfie: selfieImage,
