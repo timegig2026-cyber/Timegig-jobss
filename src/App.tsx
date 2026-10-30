@@ -1451,9 +1451,10 @@ export default function App() {
             </div>
           </div>
         </div>
+      </div>
 
-        {/* Auth View */}
-        <div className={`absolute inset-0 bg-white z-[50] transition-transform duration-300 flex flex-col items-center justify-center p-8 ${activeTab === 'auth' ? 'translate-y-0' : 'translate-y-full'}`}>
+      {/* Auth View */}
+      <div className={`absolute inset-0 bg-white z-[50] transition-transform duration-300 flex flex-col items-center justify-center p-8 ${activeTab === 'auth' ? 'translate-y-0' : 'translate-y-full'}`}>
           <div className="w-full max-w-sm flex flex-col items-center text-center space-y-12">
             <div className="relative">
               <div className="w-32 h-32 bg-black rounded-[3rem] rotate-12 flex items-center justify-center shadow-2xl">
@@ -1498,7 +1499,6 @@ export default function App() {
             )}
           </div>
         </div>
-      </div>
 
       {/* Bottom Menu Bar */}
       <div className="h-14 bg-white border-t border-gray-100 flex items-center justify-around px-4 z-[3000] shrink-0">
