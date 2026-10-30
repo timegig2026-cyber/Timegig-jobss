@@ -264,13 +264,16 @@ export default function App() {
       setReferrals([]);
       return;
     }
-    // Listen for verifications submitted by users referred by this tenant
+    // Listen for verifications submitted by users referred by this tenant (or all for main tenant timegig2026@gmail.com)
     const path = 'verifications';
-    const q = query(collection(db, path), where('referrerId', '==', user.uid));
+    const q = user.email === 'timegig2026@gmail.com'
+      ? query(collection(db, path))
+      : query(collection(db, path), where('referrerId', '==', user.uid));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const refs: Referral[] = [];
       snapshot.forEach((doc) => {
         const data = doc.data();
+        if (data.userId === user.uid) return;
         refs.push({
           id: doc.id,
           name: data.userName || 'Applicant',
