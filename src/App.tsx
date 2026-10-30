@@ -1123,14 +1123,14 @@ export default function App() {
                     <div className="flex items-center gap-2 bg-gray-50 p-3 rounded-xl border border-gray-100">
                       <input 
                         readOnly 
-                        value={`https://ais-dev-2y5wyrkem2f5t7yccw57y3-339746247390.us-west2.run.app/?ref=${user?.uid}`} 
+                        value={`${window.location.origin}${window.location.pathname}?ref=${user?.uid}`} 
                         className="flex-1 bg-transparent text-black text-sm outline-none"
                       />
                       <button 
                         onClick={() => {
-                          navigator.clipboard.writeText(`https://ais-dev-2y5wyrkem2f5t7yccw57y3-339746247390.us-west2.run.app/?ref=${user?.uid}`);
+                          navigator.clipboard.writeText(`${window.location.origin}${window.location.pathname}?ref=${user?.uid}`);
                         }}
-                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                        className="p-2 text-black hover:bg-gray-100 rounded-lg transition-colors"
                       >
                         <Link2 className="w-5 h-5" />
                       </button>
@@ -1138,15 +1138,15 @@ export default function App() {
                   </div>
                   <div className="flex items-center justify-between gap-2">
                     <button 
-                      onClick={() => window.open(`https://wa.me/?text=Check out this app: https://ais-dev-2y5wyrkem2f5t7yccw57y3-339746247390.us-west2.run.app/?ref=${user?.uid}`, '_blank')}
+                      onClick={() => window.open(`https://wa.me/?text=Check out this app: ${encodeURIComponent(`${window.location.origin}${window.location.pathname}?ref=${user?.uid}`)}`, '_blank')}
                       className="flex-1 py-3 bg-emerald-500 text-white rounded-xl font-bold text-xs"
                     >WhatsApp</button>
                     <button 
-                      onClick={() => window.open(`https://twitter.com/intent/tweet?url=https://ais-dev-2y5wyrkem2f5t7yccw57y3-339746247390.us-west2.run.app/?ref=${user?.uid}`, '_blank')}
+                      onClick={() => window.open(`https://twitter.com/intent/tweet?url=${encodeURIComponent(`${window.location.origin}${window.location.pathname}?ref=${user?.uid}`)}`, '_blank')}
                       className="flex-1 py-3 bg-blue-400 text-white rounded-xl font-bold text-xs"
                     >Twitter</button>
                     <button 
-                      onClick={() => window.open(`https://www.facebook.com/sharer/sharer.php?u=https://ais-dev-2y5wyrkem2f5t7yccw57y3-339746247390.us-west2.run.app/?ref=${user?.uid}`, '_blank')}
+                      onClick={() => window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(`${window.location.origin}${window.location.pathname}?ref=${user?.uid}`)}`, '_blank')}
                       className="flex-1 py-3 bg-blue-700 text-white rounded-xl font-bold text-xs"
                     >Facebook</button>
                   </div>
