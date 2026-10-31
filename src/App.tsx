@@ -7,7 +7,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, useMap, useMapEvents, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
-import { MapPin, Compass, Search, LocateFixed, Zap, X, Plus, Minus, Layers, Check, Camera, FileText, CreditCard, Clock, ChevronLeft, Upload, RefreshCw, Scan, LayoutGrid, Users, Trash2, User, Mail, Phone, Link2, Briefcase, Star, MapPinned, Lock, Unlock, Globe, Target, LogIn, LogOut } from 'lucide-react';
+import { MapPin, Compass, Search, LocateFixed, Zap, X, Plus, Minus, Layers, Check, Camera, FileText, CreditCard, Clock, ChevronLeft, Upload, RefreshCw, Scan, LayoutGrid, Users, Trash2, User, Mail, Phone, Link2, Briefcase, Star, MapPinned, Lock, Unlock, Globe, Target, LogIn, LogOut, Maximize2, CheckCircle2, Sparkles, ShieldCheck, Gift } from 'lucide-react';
 import * as faceapi from 'face-api.js';
 import { auth, db } from './lib/firebase';
 import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut, User as FirebaseUser } from 'firebase/auth';
@@ -114,6 +114,17 @@ export default function App() {
   const [showReferralList, setShowReferralList] = useState(false);
   const [stats, setStats] = useState({ tenantProfit: 0, userProfit: 0, totalReferrals: 0 });
 
+  // Full Screen Image Viewer Modal State
+  const [fullScreenImage, setFullScreenImage] = useState<{ url: string; title: string; subtitle?: string } | null>(null);
+
+  // Activated Popups State
+  const [tenantApprovalPopup, setTenantApprovalPopup] = useState<{ name: string; type: string } | null>(null);
+  const [showReferralActivatedPopup, setShowReferralActivatedPopup] = useState(false);
+
+  // Referral Welcome State
+  const [showWelcomeModal, setShowWelcomeModal] = useState(false);
+  const [inviterId, setInviterId] = useState<string>('');
+
   // Camera & Selfie State
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -157,7 +168,7 @@ export default function App() {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedGigView, setSelectedGigView] = useState<any | null>(null);
   const [isApplying, setIsApplying] = useState(false);
-  const debounceTimer = useRef<NodeJS.Timeout>();
+  const debounceTimer = useRef<any>(null);
 
   // No Mock Data
   const [referrals, setReferrals] = useState<Referral[]>([]);
@@ -193,31 +204,82 @@ export default function App() {
   };
 
   // Firebase Auth Listener
+  // Firebase Auth & User Profile Listener
   useEffect(() => {
-    // Capture ref from URL into localStorage on load
+    // Capture ref from URL into localStorage on load & check referral welcome
     const params = new URLSearchParams(window.location.search);
     const ref = params.get('ref');
     if (ref) {
       localStorage.setItem('timegig_ref', ref);
+      setInviterId(ref);
+      setShowWelcomeModal(true);
+    } else {
+      const storedRef = localStorage.getItem('timegig_ref');
+      if (storedRef) {
+        setInviterId(storedRef);
+        if (!sessionStorage.getItem('welcome_dismissed')) {
+          setShowWelcomeModal(true);
+        }
+      }
     }
 
     if (!auth) return;
+    let userDocUnsub: (() => void) | null = null;
+
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
+      if (userDocUnsub) {
+        userDocUnsub();
+        userDocUnsub = null;
+      }
+
       if (firebaseUser) {
-        // Fetch or create user profile
         const userDocRef = doc(db, 'users', firebaseUser.uid);
-        const userDoc = await getDoc(userDocRef);
         const storedRef = localStorage.getItem('timegig_ref') || '';
         
-        if (userDoc.exists()) {
-          const data = userDoc.data();
-          let finalReferrerId = data.referrerId || storedRef;
-          if (!data.referrerId && storedRef) {
+        try {
+          const userDoc = await getDoc(userDocRef);
+          if (!userDoc.exists()) {
+            // New user registered via link
+            const initialData = {
+              uid: firebaseUser.uid,
+              email: firebaseUser.email,
+              role: firebaseUser.email === 'timegig2026@gmail.com' ? 'Tenant' : 'User', // Bootstrap admin
+              isApproved: firebaseUser.email === 'timegig2026@gmail.com',
+              createdAt: serverTimestamp(),
+              applicationChances: 5,
+              referrerId: storedRef,
+              tenantProfit: 0,
+              userProfit: 0
+            };
+            await setDoc(userDocRef, initialData);
+            if (storedRef && !sessionStorage.getItem('welcome_dismissed')) {
+              setShowWelcomeModal(true);
+            }
+          } else if (!userDoc.data().referrerId && storedRef) {
             await updateDoc(userDocRef, { referrerId: storedRef }).catch(e => console.error(e));
           }
+        } catch (e) {
+          console.error('Error initializing user doc:', e);
+        }
+
+        // Live real-time listener on user profile
+        userDocUnsub = onSnapshot(userDocRef, (docSnap) => {
+          if (!docSnap.exists()) return;
+          const data = docSnap.data();
+          const finalReferrerId = data.referrerId || storedRef;
+
+          const nowApproved = Boolean(data.isApproved);
+          setIsApproved((prevApproved) => {
+            // If user transitioned to approved and is not the main tenant bootstrap, notify them!
+            if (nowApproved && !prevApproved && firebaseUser.email !== 'timegig2026@gmail.com') {
+              setShowReferralActivatedPopup(true);
+              setVerificationStep(null);
+            }
+            return nowApproved;
+          });
+
           setUserRole(data.role || 'User');
-          setIsApproved(data.isApproved || false);
           setProfileLocked(data.profileLocked || false);
           setLastLogoUpdate(data.lastLogoUpdate || null);
           setProfileData({
@@ -236,25 +298,9 @@ export default function App() {
             userProfit: data.userProfit ?? 0
           });
           if (data.photoURL) setSelfieImage(data.photoURL);
-        } else {
-          // New user
-          const referrerId = storedRef;
-          
-          const initialData = {
-            uid: firebaseUser.uid,
-            email: firebaseUser.email,
-            role: firebaseUser.email === 'timegig2026@gmail.com' ? 'Tenant' : 'User', // Bootstrap admin
-            isApproved: firebaseUser.email === 'timegig2026@gmail.com',
-            createdAt: serverTimestamp(),
-            applicationChances: 5,
-            referrerId: referrerId,
-            tenantProfit: 0,
-            userProfit: 0
-          };
-          await setDoc(userDocRef, initialData);
-          setUserRole(initialData.role as 'User' | 'Tenant');
-          setIsApproved(initialData.isApproved);
-        }
+        }, (err) => {
+          console.error('User listener error:', err);
+        });
       } else {
         // Reset states on logout
         setUserRole('User');
@@ -262,11 +308,16 @@ export default function App() {
         setSelfieImage(null);
         setProfileData({
           name: '', surname: '', contact: '', email: '', location: '',
-          workTrade: '', experience: '', reference: '', socialLinks: [''], referrerId: ''
+          workTrade: '', experience: '', reference: '', socialLinks: [''],
+          applicationChances: 5, referrerId: '', tenantProfit: 0, userProfit: 0
         });
       }
     });
-    return () => unsubscribe();
+
+    return () => {
+      unsubscribe();
+      if (userDocUnsub) userDocUnsub();
+    };
   }, []);
 
   // Listen for referrals if Tenant
@@ -775,6 +826,16 @@ export default function App() {
               </ul>
             )}
           </div>
+
+          {(inviterId || localStorage.getItem('timegig_ref')) && (
+            <button 
+              onClick={() => setShowWelcomeModal(true)}
+              className="pointer-events-auto mx-auto bg-black text-white px-4 py-2 rounded-full shadow-lg border border-white/20 flex items-center gap-2 text-xs font-bold active:scale-95 transition-all"
+            >
+              <Gift className="w-4 h-4 text-emerald-400" />
+              <span>Invited by Tenant • View Referral Benefits</span>
+            </button>
+          )}
         </div>
       )}
 
@@ -1197,7 +1258,16 @@ export default function App() {
                 </button>
                 <div className="bg-white rounded-[2.5rem] overflow-hidden shadow-xl border border-gray-100">
                   <div className="p-8 border-b border-gray-50 flex items-center gap-6">
-                    <img src={referralView.selfie} className="w-20 h-20 rounded-2xl object-cover shadow-lg border-2 border-white" alt="Selfie" />
+                    <div 
+                      onClick={() => setFullScreenImage({ url: referralView.selfie, title: 'Applicant Selfie Photo', subtitle: referralView.name })}
+                      className="relative group cursor-pointer shrink-0"
+                      title="Click to view full screen"
+                    >
+                      <img src={referralView.selfie} className="w-20 h-20 rounded-2xl object-cover shadow-lg border-2 border-white group-hover:scale-105 transition-transform" alt="Selfie" />
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 rounded-2xl flex items-center justify-center transition-opacity text-white">
+                        <Maximize2 className="w-5 h-5" />
+                      </div>
+                    </div>
                     <div>
                       <h3 className="text-2xl font-black text-black mb-1">{referralView.name}</h3>
                       <div className="flex items-center gap-2">
@@ -1206,19 +1276,53 @@ export default function App() {
                         </span>
                         <span className="text-gray-400 text-[10px] font-bold uppercase tracking-widest">{referralView.date}</span>
                       </div>
+                      <button 
+                        onClick={() => setFullScreenImage({ url: referralView.selfie, title: 'Applicant Selfie Photo', subtitle: referralView.name })}
+                        className="text-[10px] font-bold text-blue-600 hover:text-blue-700 mt-2 flex items-center gap-1 uppercase tracking-wider"
+                      >
+                        <Maximize2 className="w-3 h-3" /> Full Screen Selfie
+                      </button>
                     </div>
                   </div>
                   <div className="p-8 space-y-8">
                     <div className="space-y-3">
-                      <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2"><FileText className="w-3 h-3" /> ID / Passport Document</span>
-                      <div className="aspect-[4/3] rounded-2xl overflow-hidden border border-gray-100 bg-gray-50">
-                        <img src={referralView.idDoc} className="w-full h-full object-cover" alt="ID Doc" />
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2"><FileText className="w-3 h-3" /> ID / Passport Document</span>
+                        <button 
+                          onClick={() => setFullScreenImage({ url: referralView.idDoc, title: 'ID / Passport Document', subtitle: referralView.name })}
+                          className="text-[10px] font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1 uppercase tracking-wider"
+                        >
+                          <Maximize2 className="w-3 h-3" /> Full Screen
+                        </button>
+                      </div>
+                      <div 
+                        onClick={() => setFullScreenImage({ url: referralView.idDoc, title: 'ID / Passport Document', subtitle: referralView.name })}
+                        className="aspect-[4/3] rounded-2xl overflow-hidden border border-gray-100 bg-gray-50 cursor-pointer relative group shadow-sm hover:shadow-md transition-all"
+                      >
+                        <img src={referralView.idDoc} className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform" alt="ID Doc" />
+                        <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 text-white font-bold text-xs">
+                          <Maximize2 className="w-5 h-5" /> Click to View Full Screen
+                        </div>
                       </div>
                     </div>
                     <div className="space-y-3">
-                      <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2"><CreditCard className="w-3 h-3" /> Proof of Payment</span>
-                      <div className="aspect-[16/9] rounded-2xl overflow-hidden border border-gray-100 bg-gray-50">
-                        <img src={referralView.pop} className="w-full h-full object-cover" alt="POP" />
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2"><CreditCard className="w-3 h-3" /> Proof of Payment</span>
+                        <button 
+                          onClick={() => setFullScreenImage({ url: referralView.pop, title: 'Proof of Payment (POP)', subtitle: referralView.name })}
+                          className="text-[10px] font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1 uppercase tracking-wider"
+                        >
+                          <Maximize2 className="w-3 h-3" /> Full Screen
+                        </button>
+                      </div>
+                      <div 
+                        onClick={() => setFullScreenImage({ url: referralView.pop, title: 'Proof of Payment (POP)', subtitle: referralView.name })}
+                        className="aspect-[16/9] rounded-2xl overflow-hidden border border-gray-100 bg-gray-50 cursor-pointer relative group shadow-sm hover:shadow-md transition-all"
+                      >
+                        <img src={referralView.pop} className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform" alt="POP" />
+                        <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 text-white font-bold text-xs">
+                          <Maximize2 className="w-5 h-5" /> Click to View Full Screen
+                        </div>
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-4 pt-4">
@@ -1272,6 +1376,12 @@ export default function App() {
                                   }));
                                 }
                               }
+
+                              // Trigger Activated pop-up on tenant's screen!
+                              setTenantApprovalPopup({
+                                name: referralView.name,
+                                type: referralView.type
+                              });
                             }
                             setReferralView(null);
                           } catch (err) { console.error(err); }
@@ -1530,47 +1640,47 @@ export default function App() {
         </div>
 
       {/* Bottom Menu Bar */}
-      <div className="h-14 bg-white border-t border-gray-100 flex items-center justify-around px-4 z-[3000] shrink-0">
+      <div className="fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-gray-100 flex items-center justify-around px-4 z-[9999] pb-[env(safe-area-inset-bottom)] shadow-lg shrink-0">
         {!user ? (
            <button onClick={() => { setVerificationStep(null); setActiveTab('auth'); }} className="flex flex-col items-center gap-0.5 text-black transition-all active:scale-90">
-             <LogIn className={`w-7 h-7 ${activeTab === 'auth' ? 'stroke-[3]' : 'stroke-[2]'}`} />
-             <span className="text-[9px] font-bold uppercase tracking-[0.1em]">Sign-In</span>
+             <LogIn className="w-6 h-6 text-black stroke-[2]" />
+             <span className="text-[9px] font-bold uppercase tracking-[0.1em] text-black">Sign-In</span>
            </button>
         ) : (
           <>
             {userRole === 'Tenant' && (
               <button onClick={() => { setVerificationStep(null); setActiveTab('tenant'); setShowReferralList(false); setReferralView(null); }} className="flex flex-col items-center gap-0.5 text-black transition-all active:scale-90">
-                <LayoutGrid className={`w-5 h-5 ${activeTab === 'tenant' ? 'stroke-[3]' : 'stroke-[2]'}`} />
-                <span className="text-[9px] font-bold uppercase tracking-[0.1em]">Tenant</span>
+                <LayoutGrid className="w-5 h-5 text-black stroke-[2]" />
+                <span className="text-[9px] font-bold uppercase tracking-[0.1em] text-black">Tenant</span>
               </button>
             )}
     
             <button onClick={() => { setActiveTab('map'); setVerificationStep(null); }} className="flex flex-col items-center gap-0.5 text-black transition-all active:scale-90">
-              <LocateFixed className={`w-7 h-7 ${activeTab === 'map' ? 'stroke-[3]' : 'stroke-[2]'}`} />
-              <span className="text-[9px] font-bold uppercase tracking-[0.1em]">GiGs</span>
+              <LocateFixed className="w-6 h-6 text-black stroke-[2]" />
+              <span className="text-[9px] font-bold uppercase tracking-[0.1em] text-black">GiGs</span>
             </button>
     
             {!isApproved && !profileData.name && (
               <button onClick={() => { setVerificationStep(null); setActiveTab('activation'); }} className="flex flex-col items-center gap-0.5 text-black transition-all active:scale-90">
-                <Zap className={`w-5 h-5 ${activeTab === 'activation' ? 'fill-black stroke-[2]' : 'stroke-[2]'}`} />
-                <span className="text-[9px] font-bold uppercase tracking-[0.1em]">Activation</span>
+                <Zap className="w-5 h-5 text-black stroke-[2]" />
+                <span className="text-[9px] font-bold uppercase tracking-[0.1em] text-black">Activation</span>
               </button>
             )}
     
             {isApproved && userRole === 'User' && (
               <button onClick={() => { setVerificationStep(null); setActiveTab('tenant'); }} className="flex flex-col items-center gap-0.5 text-black transition-all active:scale-90">
-                <Users className={`w-5 h-5 ${activeTab === 'tenant' ? 'stroke-[3]' : 'stroke-[2]'}`} />
-                <span className="text-[9px] font-bold uppercase tracking-[0.1em]">Seekers</span>
+                <Users className="w-5 h-5 text-black stroke-[2]" />
+                <span className="text-[9px] font-bold uppercase tracking-[0.1em] text-black">Seekers</span>
               </button>
             )}
     
             <button onClick={() => { setVerificationStep(null); setActiveTab('profile'); }} className="flex flex-col items-center gap-0.5 text-black transition-all active:scale-90">
               {selfieImage ? (
-                <img src={selfieImage} alt="Profile" className={`w-6 h-6 rounded-full object-cover ${activeTab === 'profile' ? 'border-2 border-black' : 'border border-gray-300'}`} />
+                <img src={selfieImage} alt="Profile" className="w-6 h-6 rounded-full object-cover border border-black" />
               ) : (
-                <User className={`w-5 h-5 ${activeTab === 'profile' ? 'stroke-[3]' : 'stroke-[2]'}`} />
+                <User className="w-5 h-5 text-black stroke-[2]" />
               )}
-              <span className="text-[9px] font-bold uppercase tracking-[0.1em]">Profile</span>
+              <span className="text-[9px] font-bold uppercase tracking-[0.1em] text-black">Profile</span>
             </button>
           </>
         )}
@@ -1582,6 +1692,170 @@ export default function App() {
           <div className="bg-white p-6 rounded-2xl shadow-2xl max-w-xs w-full text-center">
             <p className="text-sm font-bold text-black mb-4">{error}</p>
             <button onClick={() => setError(null)} className="w-full py-3 bg-black text-white font-bold rounded-xl text-xs uppercase tracking-widest">Close</button>
+          </div>
+        </div>
+      )}
+
+      {/* Full-Screen Document / Selfie Viewer */}
+      {fullScreenImage && (
+        <div className="fixed inset-0 z-[10000] bg-black/95 backdrop-blur-md flex flex-col animate-in fade-in duration-200">
+          <div className="p-4 px-6 flex items-center justify-between border-b border-white/10 text-white shrink-0">
+            <div>
+              <h3 className="font-black text-lg">{fullScreenImage.title}</h3>
+              {fullScreenImage.subtitle && (
+                <p className="text-xs text-gray-400 font-bold">{fullScreenImage.subtitle}</p>
+              )}
+            </div>
+            <button 
+              onClick={() => setFullScreenImage(null)}
+              className="p-2.5 bg-white/10 hover:bg-white/20 rounded-2xl text-white transition-all active:scale-95 flex items-center gap-1.5"
+            >
+              <X className="w-5 h-5" />
+              <span className="text-xs font-bold uppercase tracking-wider">Close</span>
+            </button>
+          </div>
+          <div className="flex-1 p-4 flex items-center justify-center overflow-auto cursor-zoom-out" onClick={() => setFullScreenImage(null)}>
+            <img 
+              src={fullScreenImage.url} 
+              alt={fullScreenImage.title} 
+              className="max-w-full max-h-[82vh] object-contain rounded-2xl shadow-2xl border border-white/10 cursor-default"
+              onClick={(e) => e.stopPropagation()} 
+            />
+          </div>
+          <div className="p-3 text-center border-t border-white/10 text-gray-400 text-xs shrink-0">
+            Click outside or tap Close to return
+          </div>
+        </div>
+      )}
+
+      {/* Tenant Screen - Approval Success Popup */}
+      {tenantApprovalPopup && (
+        <div className="fixed inset-0 z-[11000] bg-black/60 backdrop-blur-sm flex items-center justify-center p-6 animate-in fade-in duration-200">
+          <div className="bg-white rounded-[2.5rem] p-8 max-w-sm w-full text-center shadow-2xl space-y-6 animate-in zoom-in-95 duration-200 border border-gray-100">
+            <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto shadow-inner">
+              <CheckCircle2 className="w-10 h-10" />
+            </div>
+            <div className="space-y-2">
+              <span className="text-[10px] font-black text-emerald-600 uppercase tracking-[0.2em] bg-emerald-50 px-3 py-1 rounded-full">Activated</span>
+              <h3 className="text-2xl font-black text-black">Submission Approved!</h3>
+              <p className="text-gray-500 text-sm leading-relaxed">
+                <strong className="text-black">{tenantApprovalPopup.name}</strong> has been successfully verified & activated as a <strong>{tenantApprovalPopup.type}</strong>.
+              </p>
+              <div className="bg-gray-50 p-3.5 rounded-xl border border-gray-100 text-xs text-gray-700 font-bold space-y-1">
+                <p className="text-emerald-600 font-black">💰 +R100.00 Profit Credited</p>
+                <p className="text-gray-400 text-[10px] font-medium">Added to your tenant profit balance</p>
+              </div>
+            </div>
+            <button 
+              onClick={() => setTenantApprovalPopup(null)}
+              className="w-full py-4 bg-black text-white font-black rounded-2xl active:scale-95 transition-all text-xs uppercase tracking-widest shadow-lg shadow-black/20"
+            >
+              Continue
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Referral's Screen - Activated Celebration Popup */}
+      {showReferralActivatedPopup && (
+        <div className="fixed inset-0 z-[11000] bg-black/60 backdrop-blur-sm flex items-center justify-center p-6 animate-in fade-in duration-200">
+          <div className="bg-white rounded-[2.5rem] p-8 max-w-sm w-full text-center shadow-2xl space-y-6 animate-in zoom-in-95 duration-200 relative overflow-hidden border border-gray-100">
+            <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-emerald-400 via-teal-500 to-emerald-600" />
+            <div className="w-20 h-20 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mx-auto shadow-lg shadow-emerald-100">
+              <Sparkles className="w-10 h-10 animate-pulse text-emerald-500" />
+            </div>
+            <div className="space-y-2">
+              <span className="text-[10px] font-black text-emerald-600 uppercase tracking-[0.2em] bg-emerald-50 px-3 py-1 rounded-full">Official Activation</span>
+              <h3 className="text-2xl font-black text-black tracking-tight">Account Activated!</h3>
+              <p className="text-gray-500 text-sm leading-relaxed">
+                Congratulations! Your verification documents and payment have been approved by the tenant. Your profile is now officially verified.
+              </p>
+              <div className="bg-emerald-50/70 p-3.5 rounded-xl border border-emerald-100 text-xs text-emerald-900 font-bold text-left space-y-1.5">
+                <div className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-600 shrink-0" /> Verified badge active on your profile</div>
+                <div className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-600 shrink-0" /> Free to apply for local on-demand gigs</div>
+                <div className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-600 shrink-0" /> Personal referral link to earn passive income</div>
+              </div>
+            </div>
+            <button 
+              onClick={() => {
+                setShowReferralActivatedPopup(false);
+                setVerificationStep(null);
+                setActiveTab('map');
+              }}
+              className="w-full py-4 bg-emerald-600 text-white font-black rounded-2xl active:scale-95 transition-all text-xs uppercase tracking-widest shadow-xl shadow-emerald-200"
+            >
+              Start Finding GiGs
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Referral Welcome Modal (For Users invited via Tenant Link) */}
+      {showWelcomeModal && (
+        <div className="fixed inset-0 z-[11000] bg-black/60 backdrop-blur-sm flex items-center justify-center p-6 animate-in fade-in duration-200">
+          <div className="bg-white rounded-[2.5rem] p-8 max-w-sm w-full text-center shadow-2xl space-y-6 animate-in zoom-in-95 duration-200 relative border border-gray-100">
+            <button 
+              onClick={() => {
+                setShowWelcomeModal(false);
+                sessionStorage.setItem('welcome_dismissed', 'true');
+              }}
+              className="absolute top-6 right-6 p-2 rounded-full hover:bg-gray-100 text-gray-400 hover:text-black transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <div className="w-20 h-20 bg-blue-50 text-blue-600 rounded-3xl flex items-center justify-center mx-auto shadow-md">
+              <Gift className="w-10 h-10 text-blue-600" />
+            </div>
+            <div className="space-y-2">
+              <span className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em] bg-blue-50 px-3 py-1 rounded-full">Tenant Referral Invite</span>
+              <h3 className="text-2xl font-black text-black tracking-tight">Welcome to TimeGiG!</h3>
+              <p className="text-gray-500 text-sm leading-relaxed">
+                You were invited by a partner Tenant to join our verified on-demand gig network.
+              </p>
+              <div className="bg-gray-50 p-3.5 rounded-xl border border-gray-100 text-xs text-gray-700 font-medium text-left space-y-1.5">
+                <div className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-500 shrink-0" /> Find on-demand gigs near you on the live map</div>
+                <div className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-500 shrink-0" /> Fast verification with photo ID & selfie</div>
+                <div className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-500 shrink-0" /> Earn passive income from your own referrals</div>
+              </div>
+            </div>
+            <div className="space-y-2">
+              {!user ? (
+                <button 
+                  onClick={() => {
+                    setShowWelcomeModal(false);
+                    sessionStorage.setItem('welcome_dismissed', 'true');
+                    handleLogin();
+                  }}
+                  className="w-full py-4 bg-black text-white font-black rounded-2xl active:scale-95 transition-all text-xs uppercase tracking-widest shadow-xl flex items-center justify-center gap-2"
+                >
+                  <LogIn className="w-4 h-4" /> Sign In & Claim Invite
+                </button>
+              ) : (
+                <button 
+                  onClick={() => {
+                    setShowWelcomeModal(false);
+                    sessionStorage.setItem('welcome_dismissed', 'true');
+                    if (!isApproved) {
+                      setActiveTab('activation');
+                    } else {
+                      setActiveTab('map');
+                    }
+                  }}
+                  className="w-full py-4 bg-black text-white font-black rounded-2xl active:scale-95 transition-all text-xs uppercase tracking-widest shadow-xl"
+                >
+                  {!isApproved ? 'Get Activated Now' : 'Explore GiGs Map'}
+                </button>
+              )}
+              <button 
+                onClick={() => {
+                  setShowWelcomeModal(false);
+                  sessionStorage.setItem('welcome_dismissed', 'true');
+                }}
+                className="w-full py-3 text-gray-500 font-bold text-xs uppercase tracking-wider hover:text-black transition-colors"
+              >
+                Explore Map First
+              </button>
+            </div>
           </div>
         </div>
       )}
