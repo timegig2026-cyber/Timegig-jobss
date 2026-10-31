@@ -18,6 +18,13 @@ service cloud.firestore {
       return isSignedIn() && getUserData().role == 'Tenant';
     }
 
+    function isMainTenant() {
+      return isSignedIn() && (
+        request.auth.token.email == 'timegig2026@gmail.com' ||
+        getUserData().email == 'timegig2026@gmail.com'
+      );
+    }
+
     // Default deny
     match /{document=**} {
       allow read, write: if false;
@@ -25,42 +32,76 @@ service cloud.firestore {
 
     // Users collection
     match /users/{userId} {
-      allow read: if isSignedIn() && (isOwner(userId) || isTenant());
-      allow create: if isOwner(userId);
+      allow read: if isSignedIn() && (isOwner(userId) || isTenant() || isMainTenant());
+      allow create: if isOwner(userId) || isMainTenant();
       allow update: if isSignedIn() && (
         // User updating their own profile
         isOwner(userId) ||
-        // Tenant approving a user
-        isTenant()
+        // Tenant approving a user or managing accounts
+        isTenant() ||
+        // Main root tenant administering accounts
+        isMainTenant()
       );
     }
 
     // Verifications collection
     match /verifications/{verificationId} {
-      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isTenant());
-      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow update: if isTenant() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'isViewed', 'isFrozen']);
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isTenant() || isMainTenant());
+      allow create: if isSignedIn() && (request.resource.data.userId == request.auth.uid || isMainTenant());
+      allow update: if isMainTenant() || (isTenant() && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+        'status', 'isViewed', 'isFrozen', 'subscriptionExpiresAt', 'activatedAt',
+        'referrerId', 'isManagedByMainAdmin', 'takenOverBy', 'takenOverAt',
+        'warningIssuedAt', 'warningDeadline', 'complianceWarningIssuedAt',
+        'complianceWarningDeadline', 'complianceNoticeReason'
+      ]));
     }
 
     // Gigs collection
     match /gigs/{gigId} {
       allow read: if true;
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow update: if isSignedIn() && resource.data.userId == request.auth.uid;
-      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow update: if isSignedIn() && (resource.data.userId == request.auth.uid || isMainTenant());
+      allow delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isMainTenant());
     }
 
     // System stats
     match /system/{docId} {
       allow read: if true;
-      allow write: if isTenant();
+      allow write: if isTenant() || isMainTenant();
     }
     // Applications collection
     match /applications/{appId} {
-      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid);
+      allow read: if isSignedIn() && (
+        resource.data.userId == request.auth.uid ||
+        resource.data.ownerId == request.auth.uid ||
+        isTenant() ||
+        isMainTenant()
+      );
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow update: if isSignedIn(); // Simplified for now to allow status updates
+      allow update: if isSignedIn(); // Allow status updates
     }
-    
+
+    // Messages collection
+    match /messages/{messageId} {
+      allow read: if isSignedIn() && (
+        resource.data.recipientId == request.auth.uid ||
+        resource.data.recipientId == 'all' ||
+        resource.data.senderId == request.auth.uid ||
+        isMainTenant()
+      );
+      allow create: if isSignedIn() && (
+        request.resource.data.senderId == request.auth.uid ||
+        isMainTenant()
+      );
+      allow update: if isSignedIn() && (
+        resource.data.recipientId == request.auth.uid ||
+        isMainTenant()
+      );
+      allow delete: if isSignedIn() && (
+        resource.data.recipientId == request.auth.uid ||
+        resource.data.senderId == request.auth.uid ||
+        isMainTenant()
+      );
+    }
   }
 }

@@ -11,6 +11,13 @@
         "surname": { "type": "string" },
         "photoURL": { "type": "string" },
         "isApproved": { "type": "boolean" },
+        "isFrozen": { "type": "boolean" },
+        "isTakenOver": { "type": "boolean" },
+        "takenOverBy": { "type": "string" },
+        "takenOverAt": { "type": "string", "format": "date-time" },
+        "complianceWarningIssuedAt": { "type": "string", "format": "date-time" },
+        "complianceWarningDeadline": { "type": "string", "format": "date-time" },
+        "complianceNoticeReason": { "type": "string" },
         "role": { "type": "string", "enum": ["User", "Tenant"] },
         "contactInfo": { "type": "string" },
         "socialLinks": { "type": "array" },
@@ -19,9 +26,28 @@
         "experience": { "type": "string" },
         "references": { "type": "string" },
         "lastLogoUpdate": { "type": "string", "format": "date-time" },
-        "profileLocked": { "type": "boolean" }
+        "profileLocked": { "type": "boolean" },
+        "hasShownActivation": { "type": "boolean" },
+        "tenantSubFee": { "type": "number" },
+        "userSubFee": { "type": "number" },
+        "bankTransferDetails": { "type": "string" }
       },
       "required": ["uid", "email"]
+    },
+    "message": {
+      "title": "Message",
+      "description": "Messages sent from main tenant to other tenants",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "recipientId": { "type": "string" },
+        "senderId": { "type": "string" },
+        "subject": { "type": "string" },
+        "body": { "type": "string" },
+        "isRead": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["recipientId", "senderId", "body"]
     },
     "verification": {
       "title": "Verification Submission",
@@ -30,10 +56,14 @@
       "properties": {
         "userId": { "type": "string" },
         "userName": { "type": "string" },
+        "referrerId": { "type": "string" },
+        "isManagedByMainAdmin": { "type": "boolean" },
+        "takenOverBy": { "type": "string" },
         "selfie": { "type": "string" },
         "idDoc": { "type": "string" },
         "pop": { "type": "string" },
-        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected", "frozen", "active"] },
+        "isFrozen": { "type": "boolean" },
         "plan": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
@@ -84,6 +114,10 @@
     "gigs": {
       "schema": "gig",
       "description": "Collection of gig posts"
+    },
+    "messages": {
+      "schema": "message",
+      "description": "Collection of messages between tenants"
     }
   }
 }
