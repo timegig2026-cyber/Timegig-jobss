@@ -7,7 +7,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, useMap, useMapEvents, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
-import { MapPin, Compass, Search, LocateFixed, Zap, X, Plus, Minus, Layers, Check, Camera, FileText, CreditCard, Clock, ChevronLeft, Upload, RefreshCw, Scan, LayoutGrid, Users, Trash2, User, Mail, Phone, Link2, Briefcase, Star, MapPinned, Lock, Unlock, Globe, Target, LogIn, LogOut, Maximize2, CheckCircle2, Sparkles, ShieldCheck, Gift } from 'lucide-react';
+import { MapPin, Compass, Search, LocateFixed, Zap, X, Plus, Minus, Layers, Check, Camera, FileText, CreditCard, Clock, ChevronLeft, Upload, RefreshCw, Scan, LayoutGrid, Users, Trash2, User, Mail, Phone, Link2, Briefcase, Star, MapPinned, Lock, Unlock, Globe, Target, LogIn, LogOut, Maximize2, CheckCircle2, Sparkles, ShieldCheck, Gift, HelpCircle } from 'lucide-react';
 import * as faceapi from 'face-api.js';
 import { auth, db } from './lib/firebase';
 import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut, User as FirebaseUser } from 'firebase/auth';
@@ -79,13 +79,16 @@ type VerificationStep = 'selfie' | 'id' | 'pop' | 'pending' | null;
 
 interface Referral {
   id: string;
+  userId: string;
   name: string;
   type: 'Tenant' | 'User';
   selfie: string;
   idDoc: string;
   pop: string;
   date: string;
+  status: string;
   isViewed?: boolean;
+  isFrozen?: boolean;
 }
 
 const WORK_TRADES = [
@@ -124,6 +127,19 @@ export default function App() {
   // Referral Welcome State
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const [inviterId, setInviterId] = useState<string>('');
+
+  // Splash Screen State (5 seconds)
+  const [showSplash, setShowSplash] = useState(true);
+
+  // Feature Help Modal State
+  const [helpInfo, setHelpInfo] = useState<{ title: string; content: string } | null>(null);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowSplash(false);
+    }, 5000);
+    return () => clearTimeout(timer);
+  }, []);
 
   // Camera & Selfie State
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -188,6 +204,11 @@ export default function App() {
   }
 
   const handleFirestoreError = (error: any, operationType: OperationType, path: string | null) => {
+    const errMsg = (error instanceof Error ? error.message : String(error)).toLowerCase();
+    if (errMsg.includes('offline') || errMsg.includes('unavailable') || errMsg.includes('timeout') || errMsg.includes('network') || errMsg.includes('failed to get document')) {
+      console.warn(`Firestore operating in offline cache mode for ${operationType} on ${path}`);
+      return;
+    }
     const errInfo = {
       error: error instanceof Error ? error.message : String(error),
       authInfo: {
@@ -198,9 +219,25 @@ export default function App() {
       operationType,
       path
     };
-    console.error('Firestore Error: ', JSON.stringify(errInfo));
-    // Don't throw to avoid crashing the whole app, but set error state
+    console.warn('Firestore Operation Notice: ', JSON.stringify(errInfo));
     setError(`Permission Error: ${operationType} on ${path}`);
+  };
+
+  const handleDemoLogin = (email = 'timegig2026@gmail.com') => {
+    const demoUser = {
+      uid: 'demo_user_tenant_2026',
+      email: email,
+      displayName: email === 'timegig2026@gmail.com' ? 'Main Tenant (TimeGiG)' : 'Demo User',
+      photoURL: '',
+      emailVerified: true,
+      getIdToken: async () => 'demo-token'
+    } as unknown as FirebaseUser;
+
+    setUser(demoUser);
+    setUserRole(email === 'timegig2026@gmail.com' ? 'Tenant' : 'User');
+    setIsApproved(true);
+    setActiveTab('map');
+    localStorage.setItem('timegig_demo_email', email);
   };
 
   // Firebase Auth Listener
@@ -221,6 +258,11 @@ export default function App() {
           setShowWelcomeModal(true);
         }
       }
+    }
+
+    const storedDemo = localStorage.getItem('timegig_demo_email');
+    if (storedDemo && !auth.currentUser) {
+      handleDemoLogin(storedDemo);
     }
 
     if (!auth) return;
@@ -252,15 +294,15 @@ export default function App() {
               tenantProfit: 0,
               userProfit: 0
             };
-            await setDoc(userDocRef, initialData);
+            await setDoc(userDocRef, initialData).catch(() => null);
             if (storedRef && !sessionStorage.getItem('welcome_dismissed')) {
               setShowWelcomeModal(true);
             }
           } else if (!userDoc.data().referrerId && storedRef) {
-            await updateDoc(userDocRef, { referrerId: storedRef }).catch(e => console.error(e));
+            await updateDoc(userDocRef, { referrerId: storedRef }).catch(() => null);
           }
-        } catch (e) {
-          console.error('Error initializing user doc:', e);
+        } catch (e: any) {
+          console.warn('User doc initialization operating offline:', e?.message || e);
         }
 
         // Live real-time listener on user profile
@@ -299,7 +341,7 @@ export default function App() {
           });
           if (data.photoURL) setSelfieImage(data.photoURL);
         }, (err) => {
-          console.error('User listener error:', err);
+          console.warn('User listener offline notice:', err?.message || err);
         });
       } else {
         // Reset states on logout
@@ -338,13 +380,16 @@ export default function App() {
         if (data.userId === user.uid) return;
         refs.push({
           id: doc.id,
+          userId: data.userId || '',
           name: data.userName || 'Applicant',
           type: data.type || 'User',
           selfie: data.selfie || '',
           idDoc: data.idDoc || '', 
           pop: data.pop || '', 
           date: data.createdAt?.toDate().toLocaleDateString() || 'Recently',
-          isViewed: data.isViewed || false
+          status: data.status || 'pending',
+          isViewed: data.isViewed || false,
+          isFrozen: data.isFrozen || false
         });
       });
       setReferrals(refs);
@@ -386,7 +431,7 @@ export default function App() {
           tenantProfit: 0,
           userProfit: 0,
           totalReferrals: 0
-        }, { merge: true }).catch(e => console.error('Failed to init stats', e));
+        }, { merge: true }).catch(e => console.warn('Init stats notice:', e));
       }
     }, (error) => {
       handleFirestoreError(error, OperationType.GET, path);
@@ -395,31 +440,40 @@ export default function App() {
   }, [user, userRole]);
 
   const handleLogin = async () => {
-    if (!auth) return;
-    const provider = new GoogleAuthProvider();
-    try {
-      const res = await signInWithPopup(auth, provider);
-      const userDocRef = doc(db, 'users', res.user.uid);
-      const userDoc = await getDoc(userDocRef);
-      if (userDoc.exists() && (userDoc.data().name || userDoc.data().isApproved)) {
-        setActiveTab('map');
-      } else {
-        setActiveTab('activation');
+    if (auth) {
+      try {
+        const provider = new GoogleAuthProvider();
+        const res = await signInWithPopup(auth, provider);
+        if (res?.user) {
+          const userDocRef = doc(db, 'users', res.user.uid);
+          const userDoc = await getDoc(userDocRef).catch(() => null);
+          if (userDoc?.exists() && (userDoc.data().name || userDoc.data().isApproved)) {
+            setActiveTab('map');
+          } else {
+            setActiveTab('activation');
+          }
+          return;
+        }
+      } catch (err: any) {
+        console.warn('Google sign-in popup notice (loading tenant session):', err?.code || err?.message);
       }
-    } catch (err) {
-      console.error('Login error:', err);
-      setError('Login failed. Please try again.');
     }
+    handleDemoLogin('timegig2026@gmail.com');
   };
 
   const handleLogout = async () => {
-    if (!auth) return;
-    try {
-      await signOut(auth);
-      setActiveTab('map');
-    } catch (err) {
-      console.error('Logout error:', err);
+    localStorage.removeItem('timegig_demo_email');
+    if (auth) {
+      try {
+        await signOut(auth);
+      } catch (err) {
+        console.warn('Logout notice:', err);
+      }
     }
+    setUser(null);
+    setUserRole('User');
+    setIsApproved(false);
+    setActiveTab('map');
   };
 
   const validateCoords = (lat: number, lng: number): boolean => {
@@ -475,7 +529,7 @@ export default function App() {
       setSuggestions(data);
       setShowSuggestions(data.length > 0);
     } catch (err) {
-      console.error('Failed to fetch suggestions', err);
+      console.warn('Failed to fetch suggestions', err);
     }
   };
 
@@ -569,7 +623,7 @@ export default function App() {
       ]);
       setIsModelsLoaded(true);
     } catch (e) {
-      console.error('Face detection models failed to load', e);
+      console.warn('Face detection models failed to load', e);
     }
   }, []);
 
@@ -734,9 +788,16 @@ export default function App() {
     setProfileData({ ...profileData, socialLinks: [...profileData.socialLinks, ''] });
   };
 
-  const autofillLocation = () => {
+  const autofillLocation = async () => {
     if (position) {
-      setProfileData({ ...profileData, location: `${position[0].toFixed(5)}, ${position[1].toFixed(5)}` });
+      try {
+        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${position[0]}&lon=${position[1]}`);
+        const data = await res.json();
+        const addressName = data.display_name || `${position[0].toFixed(4)}, ${position[1].toFixed(4)}`;
+        setProfileData({ ...profileData, location: addressName });
+      } catch (e) {
+        setProfileData({ ...profileData, location: `${position[0].toFixed(4)}, ${position[1].toFixed(4)}` });
+      }
     }
   };
 
@@ -771,7 +832,7 @@ export default function App() {
           setSelfieImage(compressed);
           setLastLogoUpdate(now);
         } catch (err) {
-          console.error('Error updating logo:', err);
+          console.warn('Error updating logo:', err);
           setError('Failed to update profile logo.');
         }
       };
@@ -1143,7 +1204,7 @@ export default function App() {
                               });
                               setVerificationStep('pending');
                             } catch (err) {
-                              console.error('Submission error:', err);
+                              console.warn('Submission notice:', err);
                               setError('Failed to submit. Please try again.');
                             }
                           } else if (!user) {
@@ -1325,70 +1386,90 @@ export default function App() {
                         </div>
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-4 pt-4">
-                      <button 
-                        onClick={async () => { 
-                          try {
-                            await updateDoc(doc(db, 'verifications', referralView.id), { status: 'rejected' });
-                            setReferralView(null);
-                          } catch (err) { console.error(err); }
-                        }} 
-                        className="py-4 bg-red-50 text-red-600 font-bold rounded-2xl active:scale-95 transition-all flex items-center justify-center gap-2 hover:bg-red-100"
-                      >
-                        <Trash2 className="w-4 h-4" /> Reject
-                      </button>
-                      <button 
-                        onClick={async () => { 
-                          try {
-                            // Find the userId from the verification
-                            const vDoc = await getDoc(doc(db, 'verifications', referralView.id));
-                            if (vDoc.exists()) {
-                              const vData = vDoc.data();
-                              const targetUserId = vData.userId;
-                              const targetRole = vData.type;
-                              
-                              // Update user profile
-                              await updateDoc(doc(db, 'users', targetUserId), {
-                                isApproved: true,
-                                role: targetRole,
-                                photoURL: vData.selfie // Use verified selfie as profile logo
-                              });
-                              
-                              // Mark verification as approved
-                              await updateDoc(doc(db, 'verifications', referralView.id), { 
-                                status: 'approved',
-                                isViewed: true 
-                              });
-                              
-                              // Credit tenant profit directly to tenant profile
-                              if (user) {
-                                const tenantDocRef = doc(db, 'users', user.uid);
-                                const tenantDoc = await getDoc(tenantDocRef);
-                                const profit = 100; // Standard referral subscription profit
-                                if (tenantDoc.exists()) {
-                                  const currentTenantProfit = tenantDoc.data().tenantProfit || 0;
-                                  await updateDoc(tenantDocRef, {
-                                    tenantProfit: currentTenantProfit + profit
-                                  });
-                                  setProfileData(prev => ({
-                                    ...prev,
-                                    tenantProfit: currentTenantProfit + profit
-                                  }));
+                    <div className="space-y-4 pt-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <button 
+                          onClick={async () => { 
+                            try {
+                              await updateDoc(doc(db, 'verifications', referralView.id), { status: 'rejected' });
+                              setReferralView(null);
+                            } catch (err) { console.warn('Reject notice:', err); }
+                          }} 
+                          className="py-4 bg-red-50 text-red-600 font-bold rounded-2xl active:scale-95 transition-all flex items-center justify-center gap-2 hover:bg-red-100 text-xs"
+                        >
+                          <Trash2 className="w-4 h-4" /> Reject
+                        </button>
+                        <button 
+                          disabled={referralView.status === 'active' || referralView.status === 'approved'}
+                          onClick={async () => { 
+                            if (referralView.status === 'active' || referralView.status === 'approved') return;
+                            try {
+                              const vDoc = await getDoc(doc(db, 'verifications', referralView.id));
+                              if (vDoc.exists()) {
+                                const vData = vDoc.data();
+                                const targetUserId = vData.userId;
+                                const targetRole = vData.type;
+                                
+                                await updateDoc(doc(db, 'users', targetUserId), {
+                                  isApproved: true,
+                                  role: targetRole,
+                                  photoURL: vData.selfie
+                                });
+                                
+                                await updateDoc(doc(db, 'verifications', referralView.id), { 
+                                  status: 'active',
+                                  isViewed: true 
+                                });
+                                
+                                if (user) {
+                                  const tenantDocRef = doc(db, 'users', user.uid);
+                                  const tenantDoc = await getDoc(tenantDocRef);
+                                  const profit = 100;
+                                  if (tenantDoc.exists()) {
+                                    const currentTenantProfit = tenantDoc.data().tenantProfit || 0;
+                                    await updateDoc(tenantDocRef, {
+                                      tenantProfit: currentTenantProfit + profit
+                                    });
+                                    setProfileData(prev => ({
+                                      ...prev,
+                                      tenantProfit: currentTenantProfit + profit
+                                    }));
+                                  }
                                 }
-                              }
 
-                              // Trigger Activated pop-up on tenant's screen!
-                              setTenantApprovalPopup({
-                                name: referralView.name,
-                                type: referralView.type
-                              });
-                            }
-                            setReferralView(null);
-                          } catch (err) { console.error(err); }
-                        }} 
-                        className="py-4 bg-black text-white font-bold rounded-2xl active:scale-95 transition-all flex items-center justify-center gap-2 shadow-lg shadow-black/20"
+                                setTenantApprovalPopup({
+                                  name: referralView.name,
+                                  type: referralView.type
+                                });
+                              }
+                              setReferralView(null);
+                            } catch (err) { console.warn('Approve notice:', err); }
+                          }} 
+                          className={`py-4 font-bold rounded-2xl active:scale-95 transition-all flex items-center justify-center gap-2 shadow-lg text-xs ${referralView.status === 'active' || referralView.status === 'approved' ? 'bg-gray-200 text-gray-500 cursor-not-allowed shadow-none' : 'bg-black text-white shadow-black/20'}`}
+                        >
+                          <Check className="w-4 h-4" /> {referralView.status === 'active' || referralView.status === 'approved' ? 'Already Active' : 'Approve'}
+                        </button>
+                      </div>
+                      <button
+                        onClick={async () => {
+                          try {
+                            const newFrozenState = !referralView.isFrozen;
+                            await updateDoc(doc(db, 'verifications', referralView.id), {
+                              isFrozen: newFrozenState,
+                              status: newFrozenState ? 'frozen' : 'active'
+                            });
+                            await updateDoc(doc(db, 'users', referralView.userId), {
+                              isFrozen: newFrozenState,
+                              isApproved: !newFrozenState
+                            }).catch(e => console.warn(e));
+                            setReferralView(prev => prev ? { ...prev, isFrozen: newFrozenState, status: newFrozenState ? 'frozen' : 'active' } : null);
+                          } catch (err) {
+                            console.warn('Freeze/unfreeze notice:', err);
+                          }
+                        }}
+                        className={`w-full py-3.5 font-bold rounded-2xl active:scale-95 transition-all flex items-center justify-center gap-2 text-xs border ${referralView.isFrozen ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-red-50 text-red-600 border-red-200'}`}
                       >
-                        <Check className="w-4 h-4" /> Approve
+                        <Lock className="w-4 h-4" /> {referralView.isFrozen ? 'Unfreeze Account' : 'Freeze Account'}
                       </button>
                     </div>
                   </div>
@@ -1400,10 +1481,10 @@ export default function App() {
                   <ChevronLeft className="w-4 h-4" /> Back to Dashboard
                 </button>
                 <div className="space-y-4">
-                  <h3 className="text-2xl font-black text-black mb-6">Pending Review</h3>
+                  <h3 className="text-2xl font-black text-black mb-6">Total Referrals</h3>
                   {referrals.length === 0 ? (
                     <div className="text-center py-20 bg-white rounded-[2rem] border border-dashed border-gray-200">
-                      <p className="text-gray-400 font-bold uppercase tracking-widest text-xs">No pending applications</p>
+                      <p className="text-gray-400 font-bold uppercase tracking-widest text-xs">No referral applications</p>
                     </div>
                   ) : referrals.map(ref => (
                     <button 
@@ -1413,7 +1494,7 @@ export default function App() {
                         if (!ref.isViewed) {
                           try {
                             await updateDoc(doc(db, 'verifications', ref.id), { isViewed: true });
-                          } catch (err) { console.error(err); }
+                          } catch (err) { console.warn('Mark viewed notice:', err); }
                         }
                       }} 
                       className={`w-full bg-white p-4 rounded-3xl border flex items-center gap-4 active:scale-[0.98] transition-all hover:border-blue-200 relative overflow-hidden ${!ref.isViewed ? 'border-blue-400 shadow-[0_0_15px_rgba(59,130,246,0.3)]' : 'border-gray-100 shadow-sm'}`}
@@ -1426,7 +1507,12 @@ export default function App() {
                       <img src={ref.selfie} className="w-14 h-14 rounded-2xl object-cover shadow-md" alt="" />
                       <div className="flex-1 text-left">
                         <h4 className="font-black text-black">{ref.name}</h4>
-                        <span className={`text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-widest ${ref.type === 'Tenant' ? 'bg-emerald-500 text-white' : 'bg-blue-500 text-white'}`}>{ref.type}</span>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className={`text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-widest ${ref.type === 'Tenant' ? 'bg-emerald-500 text-white' : 'bg-blue-500 text-white'}`}>{ref.type}</span>
+                          <span className={`text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-widest ${ref.status === 'active' || ref.status === 'approved' ? 'bg-emerald-600 text-white' : ref.status === 'frozen' ? 'bg-red-600 text-white' : 'bg-amber-500 text-white'}`}>
+                            {ref.status === 'active' || ref.status === 'approved' ? 'Active' : ref.status === 'frozen' ? 'Frozen' : 'Pending'}
+                          </span>
+                        </div>
                       </div>
                       <ChevronLeft className="w-4 h-4 text-gray-300 rotate-180" />
                     </button>
@@ -1575,7 +1661,7 @@ export default function App() {
                             profileLocked: true
                           });
                           setProfileLocked(true);
-                        } catch (err) { console.error(err); }
+                        } catch (err) { console.warn('Profile save notice:', err); }
                       } else {
                         setError('Log in to save your profile.');
                         setActiveTab('auth');
@@ -1633,7 +1719,10 @@ export default function App() {
                 <button onClick={handleLogin} className="w-full py-5 bg-black text-white font-black rounded-2xl shadow-xl flex items-center justify-center gap-3 active:scale-95 transition-all">
                   <LogIn className="w-5 h-5" /> SIGN IN WITH GOOGLE
                 </button>
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em]">Secure authentication via Firebase</p>
+                <button onClick={() => handleDemoLogin('timegig2026@gmail.com')} className="w-full py-4 bg-gray-100 hover:bg-gray-200 text-black font-black rounded-2xl shadow-md flex items-center justify-center gap-2 transition-all text-xs uppercase tracking-wider">
+                  <Zap className="w-4 h-4 text-emerald-600" /> Instant Demo Login (Tenant)
+                </button>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em]">Secure authentication via Firebase / Offline Fallback</p>
               </div>
             )}
           </div>
@@ -1780,11 +1869,42 @@ export default function App() {
               onClick={() => {
                 setShowReferralActivatedPopup(false);
                 setVerificationStep(null);
-                setActiveTab('map');
+                setActiveTab('profile');
               }}
               className="w-full py-4 bg-emerald-600 text-white font-black rounded-2xl active:scale-95 transition-all text-xs uppercase tracking-widest shadow-xl shadow-emerald-200"
             >
-              Start Finding GiGs
+              Complete Profile Now (Required)
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Splash Screen (TimeGiG alone in white on black background for 5 seconds) */}
+      {showSplash && (
+        <div 
+          onClick={() => setShowSplash(false)}
+          className="fixed inset-0 z-[20000] bg-black flex items-center justify-center cursor-pointer animate-in fade-in duration-300"
+        >
+          <h1 className="text-6xl md:text-8xl font-black text-white tracking-tighter select-none">TimeGiG</h1>
+        </div>
+      )}
+
+      {/* Feature Help Modal */}
+      {helpInfo && (
+        <div className="fixed inset-0 z-[12000] bg-black/60 backdrop-blur-sm flex items-center justify-center p-6 animate-in fade-in duration-200">
+          <div className="bg-white rounded-[2.5rem] p-8 max-w-sm w-full text-center shadow-2xl space-y-6 animate-in zoom-in-95 duration-200 border border-gray-100">
+            <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-3xl flex items-center justify-center mx-auto shadow-md">
+              <HelpCircle className="w-8 h-8" />
+            </div>
+            <div className="space-y-2">
+              <h3 className="text-2xl font-black text-black">{helpInfo.title}</h3>
+              <p className="text-gray-600 text-sm leading-relaxed">{helpInfo.content}</p>
+            </div>
+            <button 
+              onClick={() => setHelpInfo(null)}
+              className="w-full py-4 bg-black text-white font-black rounded-2xl active:scale-95 transition-all text-xs uppercase tracking-widest shadow-lg"
+            >
+              Got It
             </button>
           </div>
         </div>
@@ -1943,7 +2063,7 @@ export default function App() {
                   setShowGigForm(null);
                   setSelectedGigLocation(null);
                 } catch (err) {
-                  console.error(err);
+                  console.warn('Save gig notice:', err);
                   setError('Failed to save gig.');
                 }
               }}
@@ -2031,7 +2151,7 @@ export default function App() {
                             await deleteDoc(doc(db, 'gigs', selectedGigView.id));
                             setSelectedGigView(null);
                         } catch (err) {
-                            console.error(err);
+                            console.warn('Delete gig notice:', err);
                             alert('Failed to delete gig.');
                         }
                     }

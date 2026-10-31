@@ -39,7 +39,7 @@ service cloud.firestore {
     match /verifications/{verificationId} {
       allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isTenant());
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow update: if isTenant() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'isViewed']);
+      allow update: if isTenant() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'isViewed', 'isFrozen']);
     }
 
     // Gigs collection
