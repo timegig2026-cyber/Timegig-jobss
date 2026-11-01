@@ -491,6 +491,7 @@ export default function App() {
 
   // Main Tenant Overseer State (timegig2026@gmail.com)
   const isMainTenant = Boolean(user?.email && user.email.trim().toLowerCase() === 'timegig2026@gmail.com');
+  const canManagePromotions = isMainTenant || userRole === 'Tenant';
   const [allTenants, setAllTenants] = useState<TenantAccount[]>([]);
   const [allUsersList, setAllUsersList] = useState<any[]>([]);
   const [overseerFilter, setOverseerFilter] = useState<'all' | 'delinquent' | 'warned' | 'frozen' | 'taken_over'>('all');
@@ -543,6 +544,46 @@ export default function App() {
   const [authPassword, setAuthPassword] = useState('');
   const [authError, setAuthError] = useState<string | null>(null);
   const [isAuthSubmitting, setIsAuthSubmitting] = useState(false);
+
+  // Administrative Wipe All Accounts (Main Tenant Only)
+  const [isWipingData, setIsWipingData] = useState(false);
+  const handleWipeAllAccounts = async () => {
+    if (!user || !isMainTenant) return;
+    if (!confirm("⚠️ CRITICAL ACTION: This will delete ALL registered users, verifications, and messages from the database. This cannot be undone. Are you absolutely sure?")) return;
+    if (!confirm("FINAL CONFIRMATION: Are you really sure you want to PERMANENTLY WIPE ALL ACCOUNTS?")) return;
+    
+    setIsWipingData(true);
+    try {
+      // 1. Wipe Verifications
+      const vSnap = await getDocs(collection(db, 'verifications'));
+      for (const d of vSnap.docs) {
+        await deleteDoc(doc(db, 'verifications', d.id));
+      }
+      
+      // 2. Wipe Messages
+      const mSnap = await getDocs(collection(db, 'messages'));
+      for (const d of mSnap.docs) {
+        await deleteDoc(doc(db, 'messages', d.id));
+      }
+      
+      // 3. Wipe Users (except Main Tenant)
+      const uSnap = await getDocs(collection(db, 'users'));
+      for (const d of uSnap.docs) {
+        if (d.id !== user.uid) {
+          await deleteDoc(doc(db, 'users', d.id));
+        }
+      }
+
+      playSmoothAlarmSound();
+      alert("✅ System Reset Complete. All accounts and data have been wiped successfully.");
+      window.location.reload();
+    } catch (err) {
+      console.warn("Wipe error:", err);
+      alert("Failed to wipe data. Some records might remain.");
+    } finally {
+      setIsWipingData(false);
+    }
+  };
 
   // Smooth Receive Sound (gentle upward melodic chime: C5 -> E5 -> G5)
   const playSmoothReceiveSound = useCallback(() => {
@@ -1536,7 +1577,8 @@ export default function App() {
       return;
     }
     const isMain = user.email?.trim().toLowerCase() === 'timegig2026@gmail.com';
-    const q = isMain
+    const canManage = isMain || userRole === 'Tenant';
+    const q = canManage
       ? query(collection(db, 'messages'))
       : query(collection(db, 'messages'), where('recipientId', 'in', [user.uid, 'all']));
 
@@ -2130,16 +2172,18 @@ export default function App() {
     }
   };
 
-  // Main Tenant: Send promotion or direct message to selected audience
+  // Main Tenant / Referral Tenant: Send promotion or direct message to selected audience
   const handleSendPromotion = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!promoSubject.trim() || !promoBody.trim() || !user || !isMainTenant) return;
+    if (!promoSubject.trim() || !promoBody.trim() || !user || !canManagePromotions) return;
 
     setIsBroadcasting(true);
     setError(null);
     try {
       const subject = promoSubject.trim();
       const body = promoBody.trim();
+      const senderName = profileData.name ? `${profileData.name} ${profileData.surname}` : (isMainTenant ? 'TimeGiG Main Administration' : 'Partner Tenant');
+      const senderEmail = user.email || 'system@timegig.app';
 
       let targetCount = 0;
       let label = 'All Tenants & Users';
@@ -2150,8 +2194,8 @@ export default function App() {
           recipientId: 'all',
           recipientName: 'All Tenants & Users',
           senderId: user.uid,
-          senderEmail: 'timegig2026@gmail.com',
-          senderName: 'TimeGiG Main Administration',
+          senderEmail,
+          senderName,
           subject,
           body,
           type: 'promotion',
@@ -2161,14 +2205,14 @@ export default function App() {
         });
         targetCount = allUsersList.length || 1;
       } else if (promoTargetType === 'tenants') {
-        const tenantUids = allUsersList.filter(u => u.role === 'Tenant' && u.email?.toLowerCase() !== 'timegig2026@gmail.com').map(u => u.uid);
+        const tenantUids = allUsersList.filter(u => u.role === 'Tenant' && u.uid !== user.uid).map(u => u.uid);
         for (const tUid of tenantUids) {
           await addDoc(collection(db, 'messages'), {
             recipientId: tUid,
             recipientName: 'Tenants Network',
             senderId: user.uid,
-            senderEmail: 'timegig2026@gmail.com',
-            senderName: 'TimeGiG Main Administration',
+            senderEmail,
+            senderName,
             subject,
             body,
             type: 'promotion',
@@ -2179,14 +2223,14 @@ export default function App() {
         targetCount = tenantUids.length;
         label = `${targetCount} Tenant Accounts`;
       } else if (promoTargetType === 'users') {
-        const userUids = allUsersList.filter(u => u.role !== 'Tenant' && u.email?.toLowerCase() !== 'timegig2026@gmail.com').map(u => u.uid);
+        const userUids = allUsersList.filter(u => u.role !== 'Tenant' && u.uid !== user.uid).map(u => u.uid);
         for (const uUid of userUids) {
           await addDoc(collection(db, 'messages'), {
             recipientId: uUid,
             recipientName: 'User Network',
             senderId: user.uid,
-            senderEmail: 'timegig2026@gmail.com',
-            senderName: 'TimeGiG Main Administration',
+            senderEmail,
+            senderName,
             subject,
             body,
             type: 'promotion',
@@ -2209,8 +2253,8 @@ export default function App() {
             recipientId: targetUid,
             recipientName,
             senderId: user.uid,
-            senderEmail: 'timegig2026@gmail.com',
-            senderName: 'TimeGiG Main Administration',
+            senderEmail,
+            senderName,
             subject,
             body,
             type: 'promotion',
@@ -2408,7 +2452,7 @@ export default function App() {
                 title="Inbox & Promotions"
               >
                 <div className="relative">
-                  <Inbox className="w-5 h-5" />
+                  <Mail className="w-5 h-5" />
                   {messages.some(m => !m.isRead) && (
                     <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 border-2 border-white rounded-full animate-pulse" />
                   )}
@@ -2545,6 +2589,11 @@ export default function App() {
                 <div className="text-center py-4">
                   <h2 className="text-3xl font-black text-black tracking-tight">TimeGiG Pro</h2>
                   <p className="text-gray-500 text-sm font-medium mt-1">Unlock premium location features</p>
+                  {isReferralUser && !isApproved && (
+                    <div className="mt-3 bg-emerald-50 text-emerald-700 px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest inline-flex items-center gap-2 border border-emerald-100">
+                      <Sparkles className="w-3 h-3" /> 30-Day Free Trial Available
+                    </div>
+                  )}
                 </div>
                 <div className="bg-white rounded-[2rem] shadow-sm border border-gray-100 flex flex-col relative overflow-hidden group shrink-0">
                   <div className="aspect-[16/9] w-full overflow-hidden">
@@ -2562,7 +2611,9 @@ export default function App() {
                       </div>
                     </div>
                     <p className="text-sm text-gray-600 mb-6 font-medium">Earn passive monthly income from user subscriptions while keeping your account active.</p>
-                    <button onClick={() => startVerification('Tenant Sub')} className="w-full py-4 bg-black text-white font-bold rounded-2xl active:scale-95 transition-all text-sm">Activate Tenant Sub</button>
+                    <button onClick={() => startVerification('Tenant Sub')} className="w-full py-4 bg-black text-white font-bold rounded-2xl active:scale-95 transition-all text-sm">
+                      {isReferralUser && !isApproved ? 'Start 30-Day Free Trial (Tenant)' : 'Activate Tenant Sub'}
+                    </button>
                   </div>
                 </div>
                 <div className="bg-black rounded-[2rem] shadow-2xl flex flex-col relative overflow-hidden group shrink-0">
@@ -2581,7 +2632,9 @@ export default function App() {
                       </div>
                     </div>
                     <p className="text-sm text-gray-400 mb-6 font-medium">Use all app features and keep your account active with a low monthly fee.</p>
-                    <button onClick={() => startVerification('User Sub')} className="w-full py-4 bg-white text-black font-bold rounded-2xl active:scale-95 transition-all text-sm">Activate User Sub</button>
+                    <button onClick={() => startVerification('User Sub')} className="w-full py-4 bg-white text-black font-bold rounded-2xl active:scale-95 transition-all text-sm">
+                      {isReferralUser && !isApproved ? 'Start 30-Day Free Trial (User)' : 'Activate User Sub'}
+                    </button>
                   </div>
                 </div>
               </>
@@ -2704,34 +2757,44 @@ export default function App() {
                   {verificationStep === 'pop' && (
                     <div className="flex-1 flex flex-col items-center text-center">
                       <div className="w-20 h-20 bg-emerald-50 rounded-3xl flex items-center justify-center mb-6 text-emerald-600">
-                        <CreditCard className="w-10 h-10" />
+                        {isReferralUser && !isApproved ? <Sparkles className="w-10 h-10" /> : <CreditCard className="w-10 h-10" />}
                       </div>
-                      <h3 className="text-2xl font-black text-black mb-2">Proof of Payment</h3>
-                      <p className="text-gray-500 text-sm mb-10 leading-relaxed">Upload the proof of payment for your {selectedPlan} activation.</p>
-                      <label className="w-full aspect-[16/9] bg-gray-50 rounded-3xl border-2 border-dashed border-gray-200 flex flex-col items-center justify-center mb-10 group cursor-pointer hover:border-emerald-400 transition-colors overflow-hidden">
-                        <input type="file" accept="image/*" className="hidden" onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) {
-                            const reader = new FileReader();
-                            reader.onloadend = async () => {
-                              const compressed = await compressImage(reader.result as string);
-                              setPopDocument(compressed);
-                            };
-                            reader.readAsDataURL(file);
-                          }
-                        }} />
-                        {popDocument ? (
-                          <img src={popDocument} className="w-full h-full object-cover" alt="POP Preview" />
-                        ) : (
-                          <>
-                            <Upload className="w-8 h-8 text-gray-300 mb-2 group-hover:text-emerald-400" />
-                            <span className="text-xs font-bold text-gray-400 group-hover:text-emerald-500 uppercase tracking-widest">Upload Proof of Payment</span>
-                          </>
-                        )}
-                      </label>
+                      <h3 className="text-2xl font-black text-black mb-2">
+                        {isReferralUser && !isApproved ? 'Claim Free Trial' : 'Proof of Payment'}
+                      </h3>
+                      <p className="text-gray-500 text-sm mb-10 leading-relaxed">
+                        {isReferralUser && !isApproved 
+                          ? `You are eligible for a 30-day free trial of ${selectedPlan}. No payment is required today. Click below to submit your trial request.`
+                          : `Upload the proof of payment for your ${selectedPlan} activation.`}
+                      </p>
+                      
+                      {!(isReferralUser && !isApproved) && (
+                        <label className="w-full aspect-[16/9] bg-gray-50 rounded-3xl border-2 border-dashed border-gray-200 flex flex-col items-center justify-center mb-10 group cursor-pointer hover:border-emerald-400 transition-colors overflow-hidden">
+                          <input type="file" accept="image/*" className="hidden" onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              const reader = new FileReader();
+                              reader.onloadend = async () => {
+                                const compressed = await compressImage(reader.result as string);
+                                setPopDocument(compressed);
+                              };
+                              reader.readAsDataURL(file);
+                            }
+                          }} />
+                          {popDocument ? (
+                            <img src={popDocument} className="w-full h-full object-cover" alt="POP Preview" />
+                          ) : (
+                            <>
+                              <Upload className="w-8 h-8 text-gray-300 mb-2 group-hover:text-emerald-400" />
+                              <span className="text-xs font-bold text-gray-400 group-hover:text-emerald-500 uppercase tracking-widest">Upload Proof of Payment</span>
+                            </>
+                          )}
+                        </label>
+                      )}
+
                       <button 
                         onClick={async () => {
-                          if (popDocument && selfieImage && idDocument && user) {
+                          if ((popDocument || (isReferralUser && !isApproved)) && selfieImage && idDocument && user) {
                             try {
                               // Check referral limits
                               // Resolve final referrer
@@ -2801,10 +2864,10 @@ export default function App() {
                             setActiveTab('auth');
                           }
                         }} 
-                        disabled={!popDocument}
-                        className={`w-full py-5 font-bold rounded-2xl active:scale-95 transition-all shadow-lg uppercase tracking-widest text-sm ${popDocument ? 'bg-emerald-600 text-white shadow-emerald-100' : 'bg-gray-100 text-gray-400'}`}
+                        disabled={!(popDocument || (isReferralUser && !isApproved))}
+                        className={`w-full py-5 font-bold rounded-2xl active:scale-95 transition-all shadow-lg uppercase tracking-widest text-sm ${ (popDocument || (isReferralUser && !isApproved)) ? 'bg-emerald-600 text-white shadow-emerald-100' : 'bg-gray-100 text-gray-400'}`}
                       >
-                        Submit Everything
+                        {isReferralUser && !isApproved ? 'Claim 30-Day Free Trial' : 'Submit Everything'}
                       </button>
                     </div>
                   )}
@@ -2827,68 +2890,62 @@ export default function App() {
         </div>
 
         {/* Tenant Dashboard View */}
-        <div className={`absolute inset-0 bg-gray-50/80 backdrop-blur-xl z-30 transition-transform duration-300 flex flex-col overflow-hidden ${activeTab === 'tenant' ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0 pointer-events-none'}`}>
+        <div className={`absolute inset-0 bg-black/40 backdrop-blur-xl text-white z-30 transition-transform duration-300 flex flex-col overflow-hidden ${activeTab === 'tenant' ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0 pointer-events-none'}`}>
           <div className="flex-1 flex flex-col p-6 pt-12 overflow-y-auto no-scrollbar">
             {!showReferralList ? (
-              <div className="max-w-md mx-auto w-full space-y-6 pb-20">
-                <div className="text-center mb-6 relative">
-                  <h2 className="text-3xl font-black text-black tracking-tight mb-1">Tenant Dashboard</h2>
-                  <p className="text-gray-500 text-sm font-medium">Passive Income & Network Management</p>
+              <div className="max-w-md mx-auto w-full space-y-4 pb-16">
+                <div className="text-center mb-4 relative">
+                  <h2 className="text-2xl font-black text-black tracking-tight mb-0.5">Tenant Dashboard</h2>
+                  <p className="text-gray-500 text-[11px] font-medium">Passive Income & Network Management</p>
                 </div>
 
-                {/* Total Profit Balance Box (Moved Up to Top) */}
+                {/* Total Profit Balance Box - More Compact */}
                 {(() => {
                   const tenantSubProfit = (profileData as any).tenantSubProfit ?? ((profileData as any).tenantProfit || 0);
                   const userSubProfit = (profileData as any).userSubProfit ?? ((profileData as any).userProfit || 0);
                   const totalProfitBalance = tenantSubProfit + userSubProfit;
                   return (
-                    <div className="bg-black rounded-[2.5rem] p-10 shadow-2xl relative overflow-hidden group border border-white/10 space-y-6">
-                      <div className="absolute top-0 right-0 p-8 opacity-20">
-                        <LayoutGrid className="w-24 h-24 text-white group-hover:rotate-12 transition-transform" />
+                    <div className="bg-black rounded-[1.5rem] p-4 shadow-xl relative overflow-hidden group border border-white/10 space-y-3">
+                      <div className="absolute top-0 right-0 p-3 opacity-10">
+                        <LayoutGrid className="w-12 h-12 text-white" />
                       </div>
                       <div className="flex items-center justify-between relative z-10">
                         <div>
-                          <span className="text-gray-400 text-xs font-black uppercase tracking-[0.2em] block mb-1">Profit Balance</span>
-                          <div className="text-5xl font-black text-white tracking-tighter">
+                          <span className="text-gray-400 text-[9px] font-black uppercase tracking-[0.2em] block">Profit Balance</span>
+                          <div className="text-3xl font-black text-white tracking-tighter">
                             R{totalProfitBalance.toFixed(2)}
                           </div>
                         </div>
                         {isMainTenant && (
                           <button 
                             onClick={async () => {
-                              if (confirm('Reset profit balance to zero?')) {
+                              if (confirm('Reset balance?')) {
                                 await updateDoc(doc(db, 'users', user!.uid), {
-                                  tenantProfit: 0,
-                                  userProfit: 0,
-                                  tenantSubProfit: 0,
-                                  userSubProfit: 0
+                                  tenantProfit: 0, userProfit: 0, tenantSubProfit: 0, userSubProfit: 0
                                 });
                               }
                             }}
-                            className="bg-white/10 hover:bg-white/20 p-4 rounded-3xl text-white transition-colors border border-white/10"
-                            title="Reset Balance"
+                            className="bg-white/10 hover:bg-white/20 p-2.5 rounded-2xl text-white transition-colors border border-white/10"
                           >
-                            <RefreshCw className="w-6 h-6" />
+                            <RefreshCw className="w-4 h-4" />
                           </button>
                         )}
                       </div>
 
-                      <div className="grid grid-cols-2 gap-6 relative z-10">
+                      <div className="grid grid-cols-2 gap-2 relative z-10">
                         <button 
                           onClick={() => userRole === 'Tenant' && setShowFeesModal({ type: 'Tenant', fee: profileData.tenantSubFee || 100 })}
-                          className={`rounded-[2rem] p-6 border transition-all text-left ${userRole === 'Tenant' ? 'bg-white/5 border-white/10 hover:bg-white/10 active:scale-95' : 'bg-white/5 border-white/5 cursor-default'}`}
+                          className={`rounded-xl p-3 border transition-all text-left ${userRole === 'Tenant' ? 'bg-white/5 border-white/10 hover:bg-white/10' : 'bg-white/5 border-white/5'}`}
                         >
-                          <span className="text-gray-500 text-[10px] font-black uppercase tracking-wider block mb-1">Tenant Sub Profit</span>
-                          <div className="text-2xl font-black text-emerald-400">R{tenantSubProfit.toFixed(2)}</div>
-                          {userRole === 'Tenant' && <span className="text-[9px] text-gray-500 font-bold uppercase mt-1 block">Tap to set fee</span>}
+                          <span className="text-gray-500 text-[8px] font-black uppercase tracking-wider block">Tenant Sub</span>
+                          <div className="text-lg font-black text-emerald-400">R{tenantSubProfit.toFixed(2)}</div>
                         </button>
                         <button 
                           onClick={() => userRole === 'Tenant' && setShowFeesModal({ type: 'User', fee: profileData.userSubFee || 25 })}
-                          className={`rounded-[2rem] p-6 border transition-all text-left ${userRole === 'Tenant' ? 'bg-white/5 border-white/10 hover:bg-white/10 active:scale-95' : 'bg-white/5 border-white/5 cursor-default'}`}
+                          className={`rounded-xl p-3 border transition-all text-left ${userRole === 'Tenant' ? 'bg-white/5 border-white/10 hover:bg-white/10' : 'bg-white/5 border-white/5'}`}
                         >
-                          <span className="text-gray-500 text-[10px] font-black uppercase tracking-wider block mb-1">User Sub Profit</span>
-                          <div className="text-2xl font-black text-blue-400">R{userSubProfit.toFixed(2)}</div>
-                          {userRole === 'Tenant' && <span className="text-[9px] text-gray-500 font-bold uppercase mt-1 block">Tap to set fee</span>}
+                          <span className="text-gray-500 text-[8px] font-black uppercase tracking-wider block">User Sub</span>
+                          <div className="text-lg font-black text-blue-400">R{userSubProfit.toFixed(2)}</div>
                         </button>
                       </div>
                     </div>
@@ -2932,41 +2989,31 @@ export default function App() {
                   </div>
                 )}
 
-                {/* Root Overseer Center for Main Tenant timegig2026@gmail.com */}
+                {/* Root Overseer Center - More Compact */}
                 {isMainTenant && (
-                  <div className="bg-white/90 backdrop-blur-xl rounded-[2rem] p-6 shadow-md border border-gray-100 space-y-5 transition-all">
+                  <div className="bg-white/90 backdrop-blur-xl rounded-xl p-3 shadow-sm border border-gray-100 space-y-3 transition-all">
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-2xl bg-black text-white flex items-center justify-center shadow-md">
-                          <ShieldAlert className="w-5 h-5 text-amber-400" />
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-black text-white flex items-center justify-center shadow-md">
+                          <ShieldAlert className="w-3.5 h-3.5 text-amber-400" />
                         </div>
                         <div>
-                          <h3 className="font-black text-black text-base flex items-center gap-2">
-                            Root Overseer Center
-                            <span className="text-[9px] font-bold bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full uppercase">Admin</span>
+                          <h3 className="font-black text-black text-xs flex items-center gap-1">
+                            Overseer
+                            <span className="text-[7px] font-bold bg-gray-100 text-gray-700 px-1.5 py-0.5 rounded-full uppercase">Admin</span>
                           </h3>
-                          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">timegig2026@gmail.com</p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1.5">
                         <button
                           onClick={() => setShowOverseerCenter(!showOverseerCenter)}
-                          className="flex items-center gap-1 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-black rounded-xl text-[10px] font-black uppercase tracking-wider transition-all active:scale-95"
-                          title={showOverseerCenter ? 'Hide Overseer Center' : 'Unhide Overseer Center'}
+                          className="flex items-center gap-1 px-2.5 py-1 bg-gray-100 text-black rounded-lg text-[8px] font-black uppercase tracking-wider transition-all"
                         >
-                          {showOverseerCenter ? (
-                            <><EyeOff className="w-3.5 h-3.5" /> Hide</>
-                          ) : (
-                            <><Eye className="w-3.5 h-3.5" /> Unhide</>
-                          )}
+                          {showOverseerCenter ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
                         </button>
-                        {delinquentTenants.length > 0 ? (
-                          <span className="bg-red-500 text-white text-[10px] font-black px-2.5 py-1 rounded-full uppercase tracking-wider animate-pulse flex items-center gap-1 shadow-sm">
-                            <AlertTriangle className="w-3 h-3" /> {delinquentTenants.length}
-                          </span>
-                        ) : (
-                          <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-black px-2.5 py-1 rounded-full uppercase tracking-wider flex items-center gap-1">
-                            <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Managed
+                        {delinquentTenants.length > 0 && (
+                          <span className="bg-red-500 text-white text-[8px] font-black px-2 py-0.5 rounded-full uppercase animate-pulse">
+                            {delinquentTenants.length}
                           </span>
                         )}
                       </div>
@@ -3161,6 +3208,34 @@ export default function App() {
                       </button>
                     </div>
 
+                    {/* DANGER ZONE: Wipe All Accounts */}
+                    <div className="pt-4 border-t border-red-100 space-y-3">
+                      <div className="flex items-center gap-2 px-1">
+                        <ShieldAlert className="w-4 h-4 text-red-500" />
+                        <h4 className="font-black text-[10px] uppercase tracking-widest text-red-500">System Danger Zone</h4>
+                      </div>
+                      <button
+                        disabled={isWipingData}
+                        onClick={handleWipeAllAccounts}
+                        className={`w-full py-3 px-4 rounded-2xl border-2 border-red-100 flex items-center justify-between group transition-all active:scale-95 ${isWipingData ? 'bg-gray-50 opacity-50' : 'bg-red-50 hover:bg-red-600'}`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black transition-colors ${isWipingData ? 'bg-gray-200 text-gray-400' : 'bg-red-500 text-white group-hover:bg-white group-hover:text-red-600'}`}>
+                            <Trash2 className="w-4 h-4" />
+                          </div>
+                          <div className="text-left">
+                            <h5 className={`text-[11px] font-black uppercase tracking-wider transition-colors ${isWipingData ? 'text-gray-400' : 'text-red-600 group-hover:text-white'}`}>
+                              {isWipingData ? 'Wiping System...' : 'Wipe All Registered Accounts'}
+                            </h5>
+                            <p className={`text-[9px] font-medium transition-colors ${isWipingData ? 'text-gray-400' : 'text-red-500 group-hover:text-red-100'}`}>
+                              Irreversible: Deletes all users, verifications & messages
+                            </p>
+                          </div>
+                        </div>
+                        {!isWipingData && <AlertTriangle className="w-4 h-4 text-red-500 group-hover:text-white" />}
+                      </button>
+                    </div>
+
                     {/* Tenant Cards List */}
                     <div className="space-y-3 pt-1">
                       {filteredTenants.length === 0 ? (
@@ -3224,7 +3299,7 @@ export default function App() {
                               </div>
 
                               {/* Metrics row */}
-                              <div className="grid grid-cols-3 gap-2 text-center bg-white p-2.5 rounded-xl border border-gray-100 text-[10px]">
+                              <div className="grid grid-cols-3 gap-1.5 text-center bg-white p-1.5 rounded-lg border border-gray-100 text-[9px]">
                                 <div>
                                   <span className="text-gray-400 font-bold uppercase tracking-wider block text-[8px]">Pending</span>
                                   <span className={`font-black ${metrics.pendingCount > 0 ? (metrics.oldestPendingHours >= 24 ? 'text-red-600' : 'text-amber-600') : 'text-gray-700'}`}>
@@ -3303,22 +3378,22 @@ export default function App() {
             )}
 
                 {/* Referral Link Section */}
-                <div className="bg-white rounded-[2rem] p-6 shadow-sm border border-gray-100 space-y-4">
+                <div className="bg-white rounded-[1.5rem] p-4 shadow-sm border border-gray-100 space-y-3">
                   <div>
-                    <span className="text-gray-400 text-[10px] font-black uppercase tracking-widest mb-1 block">Your Referral Link</span>
-                    <div className="flex items-center gap-2 bg-gray-50 p-3 rounded-xl border border-gray-100">
+                    <span className="text-gray-400 text-[9px] font-black uppercase tracking-widest mb-1 block">Your Referral Link</span>
+                    <div className="flex items-center gap-2 bg-gray-50 p-2.5 rounded-xl border border-gray-100">
                       <input 
                         readOnly 
                         value={`${window.location.origin}${window.location.pathname}?ref=${user?.uid}`} 
-                        className="flex-1 bg-transparent text-black text-sm outline-none"
+                        className="flex-1 bg-transparent text-black text-xs outline-none font-medium"
                       />
                       <button 
                         onClick={() => {
                           navigator.clipboard.writeText(`${window.location.origin}${window.location.pathname}?ref=${user?.uid}`);
                         }}
-                        className="p-2 text-black hover:bg-gray-100 rounded-lg transition-colors"
+                        className="p-1.5 text-black hover:bg-gray-100 rounded-lg transition-colors"
                       >
-                        <Link2 className="w-5 h-5" />
+                        <Link2 className="w-4 h-4" />
                       </button>
                     </div>
                   </div>
@@ -3586,10 +3661,10 @@ export default function App() {
         </div>
 
         {/* Profile View */}
-        <div className={`absolute inset-0 bg-gray-50/80 backdrop-blur-xl z-40 transition-transform duration-300 flex flex-col overflow-hidden ${activeTab === 'profile' ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0 pointer-events-none'}`}>
+        <div className={`absolute inset-0 bg-black/40 backdrop-blur-xl text-white z-40 transition-transform duration-300 flex flex-col overflow-hidden ${activeTab === 'profile' ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0 pointer-events-none'}`}>
           <div className="flex-1 flex flex-col overflow-y-auto no-scrollbar pb-20">
             {/* Profile Header */}
-            <div className="bg-black text-white p-8 pt-24 rounded-b-[3rem] relative overflow-visible">
+            <div className="bg-black/80 backdrop-blur-2xl text-white p-8 pt-24 rounded-b-[3rem] relative overflow-visible border-b border-white/10">
               <div className="absolute top-0 right-0 p-8 opacity-10">
                 <Target className="w-32 h-32 rotate-12" />
               </div>
@@ -3629,11 +3704,11 @@ export default function App() {
                     </label>
                   )}
                 </div>
-                <h2 className="text-2xl font-black mt-16 tracking-tight">
+                <h2 className="text-2xl font-black mt-16 tracking-tight text-white">
                   {profileData.name || 'New'} {profileData.surname || 'User'}
                 </h2>
                 <div className="flex items-center gap-2 mt-1">
-                  <span className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest ${isApproved ? 'bg-emerald-500' : 'bg-amber-500'}`}>
+                  <span className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest ${isApproved ? 'bg-emerald-500 text-white' : 'bg-amber-500 text-white'}`}>
                     {isApproved ? 'Verified Account' : 'Pending Approval'}
                   </span>
                 </div>
@@ -3642,75 +3717,75 @@ export default function App() {
 
             <div className="p-6 space-y-6 max-w-md mx-auto w-full">
               {/* Form Section */}
-              <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-gray-100 space-y-6">
+              <div className="bg-black/40 backdrop-blur-md p-8 rounded-[2rem] shadow-xl border border-white/10 space-y-6 text-white">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Name</label>
-                    <input disabled={profileLocked} value={profileData.name} onChange={e => setProfileData({...profileData, name: e.target.value})} type="text" className="w-full bg-gray-50 p-3 rounded-xl text-sm font-bold border-0 focus:ring-2 focus:ring-black transition-all" />
+                    <label className="text-[10px] font-black text-gray-300 uppercase tracking-widest">Name</label>
+                    <input disabled={profileLocked} value={profileData.name} onChange={e => setProfileData({...profileData, name: e.target.value})} type="text" className="w-full bg-white/10 text-white p-3 rounded-xl text-sm font-bold border border-white/20 focus:ring-2 focus:ring-white transition-all" />
                   </div>
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Surname</label>
-                    <input disabled={profileLocked} value={profileData.surname} onChange={e => setProfileData({...profileData, surname: e.target.value})} type="text" className="w-full bg-gray-50 p-3 rounded-xl text-sm font-bold border-0 focus:ring-2 focus:ring-black transition-all" />
+                    <label className="text-[10px] font-black text-gray-300 uppercase tracking-widest">Surname</label>
+                    <input disabled={profileLocked} value={profileData.surname} onChange={e => setProfileData({...profileData, surname: e.target.value})} type="text" className="w-full bg-white/10 text-white p-3 rounded-xl text-sm font-bold border border-white/20 focus:ring-2 focus:ring-white transition-all" />
                   </div>
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2"><Phone className="w-3 h-3" /> Contact Information</label>
-                  <input disabled={profileLocked} value={profileData.contact} onChange={e => setProfileData({...profileData, contact: e.target.value})} type="tel" className="w-full bg-gray-50 p-3 rounded-xl text-sm font-bold border-0 focus:ring-2 focus:ring-black transition-all" placeholder="+27 ..." />
+                  <label className="text-[10px] font-black text-gray-300 uppercase tracking-widest flex items-center gap-2"><Phone className="w-3 h-3" /> Contact Information</label>
+                  <input disabled={profileLocked} value={profileData.contact} onChange={e => setProfileData({...profileData, contact: e.target.value})} type="tel" className="w-full bg-white/10 text-white p-3 rounded-xl text-sm font-bold border border-white/20 focus:ring-2 focus:ring-white transition-all" placeholder="+27 ..." />
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2"><Mail className="w-3 h-3" /> Email Address</label>
-                  <input disabled={profileLocked} value={profileData.email} onChange={e => setProfileData({...profileData, email: e.target.value})} type="email" className="w-full bg-gray-50 p-3 rounded-xl text-sm font-bold border-0 focus:ring-2 focus:ring-black transition-all" />
+                  <label className="text-[10px] font-black text-gray-300 uppercase tracking-widest flex items-center gap-2"><Mail className="w-3 h-3" /> Email Address</label>
+                  <input disabled={profileLocked} value={profileData.email} onChange={e => setProfileData({...profileData, email: e.target.value})} type="email" className="w-full bg-white/10 text-white p-3 rounded-xl text-sm font-bold border border-white/20 focus:ring-2 focus:ring-white transition-all" />
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2"><MapPinned className="w-3 h-3" /> Home Location</label>
+                  <label className="text-[10px] font-black text-gray-300 uppercase tracking-widest flex items-center gap-2"><MapPinned className="w-3 h-3" /> Home Location</label>
                   <div className="flex gap-2">
-                    <input disabled={profileLocked} value={profileData.location} onChange={e => setProfileData({...profileData, location: e.target.value})} type="text" className="flex-1 bg-gray-50 p-3 rounded-xl text-sm font-bold border-0 focus:ring-2 focus:ring-black transition-all" />
+                    <input disabled={profileLocked} value={profileData.location} onChange={e => setProfileData({...profileData, location: e.target.value})} type="text" className="flex-1 bg-white/10 text-white p-3 rounded-xl text-sm font-bold border border-white/20 focus:ring-2 focus:ring-white transition-all" />
                     {!profileLocked && (
-                      <button onClick={autofillLocation} className="p-3 bg-blue-50 text-blue-600 rounded-xl active:scale-95 transition-all"><Globe className="w-5 h-5" /></button>
+                      <button onClick={autofillLocation} className="p-3 bg-blue-600 text-white rounded-xl active:scale-95 transition-all"><Globe className="w-5 h-5" /></button>
                     )}
                   </div>
                 </div>
               </div>
 
               {/* Trade & Experience */}
-              <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-gray-100 space-y-6">
+              <div className="bg-black/40 backdrop-blur-md p-8 rounded-[2rem] shadow-xl border border-white/10 space-y-6 text-white">
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2"><Briefcase className="w-3 h-3" /> Primary Work Trade</label>
+                  <label className="text-[10px] font-black text-gray-300 uppercase tracking-widest flex items-center gap-2"><Briefcase className="w-3 h-3" /> Primary Work Trade</label>
                   <select 
                     disabled={profileLocked} 
                     value={profileData.workTrade} 
                     onChange={e => setProfileData({...profileData, workTrade: e.target.value})}
-                    className="w-full bg-gray-50 p-3 rounded-xl text-sm font-bold border-0 focus:ring-2 focus:ring-black transition-all"
+                    className="w-full bg-black/60 text-white p-3 rounded-xl text-sm font-bold border border-white/20 focus:ring-2 focus:ring-white transition-all"
                   >
-                    <option value="">Select a trade...</option>
-                    {WORK_TRADES.map(t => <option key={t} value={t}>{t}</option>)}
+                    <option value="" className="bg-black text-white">Select a trade...</option>
+                    {WORK_TRADES.map(t => <option key={t} value={t} className="bg-black text-white">{t}</option>)}
                   </select>
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2"><Star className="w-3 h-3" /> Work Experience</label>
-                  <textarea disabled={profileLocked} value={profileData.experience} onChange={e => setProfileData({...profileData, experience: e.target.value})} className="w-full bg-gray-50 p-3 rounded-xl text-sm font-bold border-0 focus:ring-2 focus:ring-black min-h-[100px] transition-all" placeholder="Describe your experience..." />
+                  <label className="text-[10px] font-black text-gray-300 uppercase tracking-widest flex items-center gap-2"><Star className="w-3 h-3" /> Work Experience</label>
+                  <textarea disabled={profileLocked} value={profileData.experience} onChange={e => setProfileData({...profileData, experience: e.target.value})} className="w-full bg-white/10 text-white p-3 rounded-xl text-sm font-bold border border-white/20 focus:ring-2 focus:ring-white min-h-[100px] transition-all" placeholder="Describe your experience..." />
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2"><Users className="w-3 h-3" /> Work Reference</label>
-                  <textarea disabled={profileLocked} value={profileData.reference} onChange={e => setProfileData({...profileData, reference: e.target.value})} className="w-full bg-gray-50 p-3 rounded-xl text-sm font-bold border-0 focus:ring-2 focus:ring-black min-h-[80px] transition-all" placeholder="Name and contact of reference..." />
+                  <label className="text-[10px] font-black text-gray-300 uppercase tracking-widest flex items-center gap-2"><Users className="w-3 h-3" /> Work Reference</label>
+                  <textarea disabled={profileLocked} value={profileData.reference} onChange={e => setProfileData({...profileData, reference: e.target.value})} className="w-full bg-white/10 text-white p-3 rounded-xl text-sm font-bold border border-white/20 focus:ring-2 focus:ring-white min-h-[80px] transition-all" placeholder="Name and contact of reference..." />
                 </div>
               </div>
 
               {/* Social Links */}
-              <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-gray-100 space-y-6">
+              <div className="bg-black/40 backdrop-blur-md p-8 rounded-[2rem] shadow-xl border border-white/10 space-y-6 text-white">
                 <div className="flex justify-between items-center">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2"><Link2 className="w-3 h-3" /> Social Media Links</label>
+                  <label className="text-[10px] font-black text-gray-300 uppercase tracking-widest flex items-center gap-2"><Link2 className="w-3 h-3" /> Social Media Links</label>
                   {!profileLocked && (
-                    <button onClick={addSocialLink} className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Add More</button>
+                    <button onClick={addSocialLink} className="text-[10px] font-black text-blue-400 uppercase tracking-widest">Add More</button>
                   )}
                 </div>
                 {profileData.socialLinks.map((link, i) => (
-                  <input key={i} disabled={profileLocked} value={link} onChange={e => handleSocialLinkChange(i, e.target.value)} type="url" className="w-full bg-gray-50 p-3 rounded-xl text-sm font-bold border-0 focus:ring-2 focus:ring-black transition-all mb-2" placeholder="https://..." />
+                  <input key={i} disabled={profileLocked} value={link} onChange={e => handleSocialLinkChange(i, e.target.value)} type="url" className="w-full bg-white/10 text-white p-3 rounded-xl text-sm font-bold border border-white/20 focus:ring-2 focus:ring-white transition-all mb-2" placeholder="https://..." />
                 ))}
               </div>
 
@@ -3752,19 +3827,19 @@ export default function App() {
       </div>
 
         {/* Total Referrals View (Bottom Menu Feature) */}
-        <div className={`absolute inset-0 bg-gray-50/80 backdrop-blur-xl z-35 transition-transform duration-300 flex flex-col overflow-hidden ${activeTab === 'referrals' ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0 pointer-events-none'}`}>
+        <div className={`absolute inset-0 bg-black/40 backdrop-blur-xl text-white z-35 transition-transform duration-300 flex flex-col overflow-hidden ${activeTab === 'referrals' ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0 pointer-events-none'}`}>
           <div className="flex-1 flex flex-col p-6 pt-12 overflow-y-auto no-scrollbar">
             {referralView ? (
               <div className="max-w-md mx-auto w-full flex-1 flex flex-col pb-20 animate-in fade-in slide-in-from-right-4 duration-300">
-                <button onClick={() => setReferralView(null)} className="flex items-center gap-2 text-gray-500 font-bold uppercase tracking-widest text-[10px] mb-6 active:scale-95 transition-all">
+                <button onClick={() => setReferralView(null)} className="flex items-center gap-2 text-gray-300 font-bold uppercase tracking-widest text-[10px] mb-6 active:scale-95 transition-all">
                   <ChevronLeft className="w-4 h-4" /> Back to Referral List
                 </button>
-                <div className="bg-white rounded-[2.5rem] p-6 shadow-sm border border-gray-100 space-y-6">
-                  <div className="flex items-center gap-4 border-b border-gray-100 pb-6">
-                    <img src={referralView.selfie} className="w-20 h-20 rounded-3xl object-cover shadow-md" alt="" />
+                <div className="bg-black/40 backdrop-blur-md rounded-[2.5rem] p-6 shadow-xl border border-white/10 space-y-6 text-white">
+                  <div className="flex items-center gap-4 border-b border-white/10 pb-6">
+                    <img src={referralView.selfie} className="w-20 h-20 rounded-3xl object-cover shadow-md border border-white/20" alt="" />
                     <div>
                       <span className={`text-[9px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-widest mb-1 inline-block ${referralView.type === 'Tenant' ? 'bg-emerald-500 text-white' : 'bg-blue-500 text-white'}`}>{referralView.type}</span>
-                      <h3 className="text-xl font-black text-black">{referralView.name}</h3>
+                      <h3 className="text-xl font-black text-white">{referralView.name}</h3>
                       <p className="text-xs text-gray-400 font-bold">{referralView.date}</p>
                     </div>
                   </div>
@@ -3950,18 +4025,18 @@ export default function App() {
         </div>
 
         {/* Seekers Directory View (Bottom Menu Feature) */}
-        <div className={`absolute inset-0 bg-gray-50/80 backdrop-blur-xl z-35 transition-transform duration-300 flex flex-col overflow-hidden ${activeTab === 'seekers' ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0 pointer-events-none'}`}>
+        <div className={`absolute inset-0 bg-black/40 backdrop-blur-xl text-white z-35 transition-transform duration-300 flex flex-col overflow-hidden ${activeTab === 'seekers' ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0 pointer-events-none'}`}>
           {/* Fixed Header & Search Section (Compact) */}
-          <div className="bg-white/80 backdrop-blur-xl p-4 pt-10 border-b border-gray-100 shadow-sm space-y-3 z-20 shrink-0">
+          <div className="bg-black/50 backdrop-blur-2xl p-4 pt-10 border-b border-white/10 shadow-lg space-y-3 z-20 shrink-0">
             <div className="max-w-md mx-auto w-full space-y-3">
               {/* Header */}
               <div className="flex items-center justify-between">
                 <div>
-                  <h2 className="text-xl font-black text-black tracking-tight">Gig Seekers</h2>
-                  <p className="text-gray-500 text-[10px] font-medium uppercase tracking-wider">Local Pros</p>
+                  <h2 className="text-xl font-black text-white tracking-tight">Gig Seekers</h2>
+                  <p className="text-gray-400 text-[10px] font-medium uppercase tracking-wider">Local Pros</p>
                 </div>
                 {/* Compact Availability Indicator */}
-                <div className="flex items-center gap-2 bg-black text-white px-3 py-1.5 rounded-xl shadow-sm border border-white/10">
+                <div className="flex items-center gap-2 bg-black/60 text-white px-3 py-1.5 rounded-xl shadow-sm border border-white/10">
                   <div className={`w-2 h-2 rounded-full ${currentUserAvailability ? 'bg-emerald-400 animate-ping' : 'bg-gray-400'}`} />
                   <span className="text-[9px] font-black uppercase tracking-tight">
                     {currentUserAvailability ? 'Available' : 'Busy'}
@@ -3978,17 +4053,17 @@ export default function App() {
 
               {/* Search Bar & Category Filters (Compact) */}
               <div className="space-y-2">
-                <div className="flex items-center gap-2 bg-white p-2.5 rounded-xl border border-gray-200 shadow-sm focus-within:ring-2 focus-within:ring-black/5 transition-all">
-                  <Search className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                <div className="flex items-center gap-2 bg-white/10 backdrop-blur-md p-2.5 rounded-xl border border-white/20 shadow-sm focus-within:ring-2 focus-within:ring-white/30 transition-all">
+                  <Search className="w-3.5 h-3.5 text-gray-300 shrink-0" />
                   <input
                     type="text"
                     placeholder="Search name, trade, location..."
                     value={seekerSearchQuery}
                     onChange={(e) => setSeekerSearchQuery(e.target.value)}
-                    className="w-full bg-transparent text-[11px] font-bold text-black outline-none"
+                    className="w-full bg-transparent text-[11px] font-bold text-white placeholder-gray-400 outline-none"
                   />
                   {seekerSearchQuery && (
-                    <button onClick={() => setSeekerSearchQuery('')} className="p-1 text-gray-400 hover:text-black">
+                    <button onClick={() => setSeekerSearchQuery('')} className="p-1 text-gray-300 hover:text-white">
                       <X className="w-3 h-3" />
                     </button>
                   )}
@@ -3997,7 +4072,7 @@ export default function App() {
                 <div className="flex items-center gap-1 overflow-x-auto no-scrollbar pb-0.5 text-[9px] font-black uppercase tracking-wider">
                   <button
                     onClick={() => setSeekerTradeFilter('All')}
-                    className={`px-2.5 py-1 rounded-lg transition-all whitespace-nowrap ${seekerTradeFilter === 'All' ? 'bg-black text-white shadow-md' : 'bg-white text-gray-600 border border-gray-100 hover:bg-gray-50'}`}
+                    className={`px-2.5 py-1 rounded-lg transition-all whitespace-nowrap ${seekerTradeFilter === 'All' ? 'bg-white text-black shadow-md' : 'bg-white/10 text-gray-300 border border-white/10 hover:bg-white/20'}`}
                   >
                     All ({allUsersList.filter(u => !user || u.uid !== user.uid).length})
                   </button>
@@ -4005,7 +4080,7 @@ export default function App() {
                     <button
                       key={t}
                       onClick={() => setSeekerTradeFilter(t)}
-                      className={`px-2.5 py-1 rounded-lg transition-all whitespace-nowrap ${seekerTradeFilter === t ? 'bg-black text-white shadow-md' : 'bg-white text-gray-600 border border-gray-100 hover:bg-gray-50'}`}
+                      className={`px-2.5 py-1 rounded-lg transition-all whitespace-nowrap ${seekerTradeFilter === t ? 'bg-white text-black shadow-md' : 'bg-white/10 text-gray-300 border border-white/10 hover:bg-white/20'}`}
                     >
                       {t}
                     </button>
@@ -4021,12 +4096,12 @@ export default function App() {
 
               {/* Empty state & Seed Button */}
               {filteredSeekers.length === 0 && (
-                <div className="p-8 text-center bg-white rounded-3xl border border-dashed border-gray-200 space-y-3">
-                  <Users className="w-8 h-8 text-gray-300 mx-auto" />
-                  <p className="text-gray-500 font-bold text-xs">No seekers match your search or filter.</p>
+                <div className="p-8 text-center bg-black/40 backdrop-blur-md rounded-3xl border border-dashed border-white/20 space-y-3 text-white">
+                  <Users className="w-8 h-8 text-gray-400 mx-auto" />
+                  <p className="text-gray-300 font-bold text-xs">No seekers match your search or filter.</p>
                   <button
                     onClick={seedSampleSeekers}
-                    className="py-3 px-5 bg-black text-white rounded-xl text-xs font-black uppercase tracking-wider shadow active:scale-95 transition-all"
+                    className="py-3 px-5 bg-white text-black rounded-xl text-xs font-black uppercase tracking-wider shadow active:scale-95 transition-all"
                   >
                     Seed Sample Verified Seekers
                   </button>
@@ -4036,7 +4111,7 @@ export default function App() {
               {/* Seekers Cards Grid */}
               <div className="space-y-4">
                 {filteredSeekers.map((s) => (
-                  <div key={s.uid} className="bg-white/90 backdrop-blur-md rounded-[2rem] p-5 border border-gray-100 shadow-sm space-y-4 hover:border-blue-200 transition-all">
+                  <div key={s.uid} className="bg-black/40 backdrop-blur-md rounded-[2rem] p-5 border border-white/10 shadow-xl space-y-4 text-white hover:border-white/30 transition-all">
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-center gap-3">
                         <div className="relative">
@@ -4456,6 +4531,37 @@ export default function App() {
         </div>
       )}
 
+      {/* Shop View (Full Screen Under Construction) */}
+      <div className={`absolute inset-0 bg-gray-50/80 backdrop-blur-xl z-[45] transition-transform duration-300 flex flex-col items-center justify-center p-8 ${activeTab === 'shop' ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0 pointer-events-none'}`}>
+        <div className="max-w-sm w-full text-center space-y-6">
+          <div className="w-24 h-24 bg-amber-100 text-amber-600 rounded-[2.5rem] flex items-center justify-center mx-auto shadow-inner relative">
+            <ShoppingBag className="w-12 h-12" />
+            <div className="absolute -top-2 -right-2 bg-black text-white text-[8px] font-black px-3 py-1 rounded-full uppercase tracking-widest border-2 border-white">Soon</div>
+          </div>
+          <div className="space-y-2">
+            <h2 className="text-3xl font-black text-black tracking-tight">TimeGiG Shop</h2>
+            <p className="text-gray-500 text-sm font-medium leading-relaxed">
+              We are building a premium marketplace for high-performance gig tools and exclusive brand merchandise.
+            </p>
+          </div>
+          <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl flex items-center gap-3 text-left">
+            <div className="p-2 bg-amber-200 rounded-xl">
+              <Zap className="w-5 h-5 text-amber-700 fill-amber-700" />
+            </div>
+            <div>
+              <p className="text-[10px] font-black text-amber-900 uppercase tracking-wider">Status: Under Construction</p>
+              <p className="text-[11px] text-amber-800 font-medium">Launching in the next platform update.</p>
+            </div>
+          </div>
+          <button 
+            onClick={() => setActiveTab('map')}
+            className="w-full py-4 bg-black text-white font-black rounded-2xl text-xs uppercase tracking-widest shadow-xl active:scale-95 transition-all"
+          >
+            Back to Map
+          </button>
+        </div>
+      </div>
+
       {/* Full-Screen Document / Selfie Viewer */}
       {fullScreenImage && (
         <div className="fixed inset-0 z-[10000] bg-black/95 backdrop-blur-md flex flex-col animate-in fade-in duration-200">
@@ -4488,38 +4594,32 @@ export default function App() {
         </div>
       )}
 
-      {/* Tenant Inbox & Main Tenant Promotion Center */}
+      {/* Tenant Inbox & Main Tenant Promotion Center (See-Through Glass & Takealot Style) */}
       {showInbox && (
-        <div className="fixed inset-0 z-[15000] bg-gray-50 flex flex-col animate-in slide-in-from-bottom duration-300">
-          {/* Header */}
-          <div className="p-5 pt-12 flex items-center justify-between border-b border-gray-100 bg-white shadow-sm shrink-0">
+        <div className="fixed inset-0 z-[15000] bg-black/40 backdrop-blur-xl flex flex-col animate-in slide-in-from-bottom duration-300">
+          {/* Takealot-Inspired Header Bar (Blue & Orange branding accents) */}
+          <div className="p-3 pt-4 flex items-center justify-between bg-[#0b1a30]/80 backdrop-blur-2xl border-b border-white/10 text-white shadow-lg shrink-0">
             <div className="flex items-center gap-3">
-              <div className={`w-11 h-11 rounded-2xl flex items-center justify-center shadow-sm ${isMainTenant ? 'bg-amber-400 text-black' : 'bg-black text-white'}`}>
-                {isMainTenant ? <Send className="w-5 h-5" /> : <Inbox className="w-6 h-6" />}
+              <div className="w-9 h-9 rounded-xl bg-orange-500 text-white flex items-center justify-center font-black shadow-md">
+                <ShoppingBag className="w-4 h-4" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h3 className="text-xl font-black text-black">
-                    {isMainTenant ? 'Promotion & Inbox Center' : 'Inbox'}
-                  </h3>
-                  {isMainTenant && (
-                    <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300">
-                      Main Tenant
-                    </span>
-                  )}
+                  <h3 className="text-base font-black tracking-tight text-white">TimeGiG Inbox & Deals</h3>
+                  <span className="text-[8px] font-black uppercase tracking-widest bg-orange-500 text-white px-2 py-0.5 rounded-full shadow-sm">
+                    Takealot Style
+                  </span>
                 </div>
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-                  {isMainTenant 
-                    ? 'Type & broadcast promotions to all tenants and users'
-                    : 'Platform updates and promotions from Administration'}
+                <p className="text-[9px] font-bold text-gray-300 uppercase tracking-wider">
+                  Gig Applications, Nearby Opportunities & Special Promotions
                 </p>
               </div>
             </div>
             <button 
               onClick={() => setShowInbox(false)}
-              className="p-3 bg-gray-100 text-gray-400 rounded-2xl hover:text-black transition-colors active:scale-95"
+              className="p-2 bg-white/10 hover:bg-white/20 rounded-xl text-white transition-all active:scale-95"
             >
-              <X className="w-6 h-6" />
+              <X className="w-5 h-5" />
             </button>
           </div>
 
@@ -4536,652 +4636,277 @@ export default function App() {
             </div>
           )}
 
-          {/* Main Tenant View Tabs */}
-          {isMainTenant && (
-            <div className="px-4 pt-3 pb-1 bg-white border-b border-gray-100 flex items-center gap-2 shrink-0 overflow-x-auto no-scrollbar">
-              <button
-                onClick={() => setMainTenantInboxTab('compose')}
-                className={`flex-1 py-2.5 px-3 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${
-                  mainTenantInboxTab === 'compose'
-                    ? 'bg-black text-white shadow-md'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
-              >
-                <Zap className="w-3.5 h-3.5 text-amber-400" /> Type Promotion
-              </button>
-              <button
-                onClick={() => setMainTenantInboxTab('sent')}
-                className={`flex-1 py-2.5 px-3 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${
-                  mainTenantInboxTab === 'sent'
-                    ? 'bg-black text-white shadow-md'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
-              >
-                <Send className="w-3.5 h-3.5" /> Sent ({messages.filter(m => m.isSentCopy || m.isBroadcast || m.senderId === user?.uid).length})
-              </button>
-              <button
-                onClick={() => setMainTenantInboxTab('direct')}
-                className={`py-2.5 px-3 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${
-                  mainTenantInboxTab === 'direct'
-                    ? 'bg-black text-white shadow-md'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
-              >
-                <Inbox className="w-3.5 h-3.5" /> Direct ({messages.filter(m => m.recipientId === user?.uid && !m.isSentCopy).length})
-              </button>
-            </div>
-          )}
+          {/* Inbox View Tabs: Gig Applications, Nearby Gigs & Promotions (Takealot Style) */}
+          <div className="px-4 py-2.5 bg-black/40 backdrop-blur-xl border-b border-white/10 flex items-center gap-2 shrink-0 overflow-x-auto no-scrollbar">
+            <button
+              onClick={() => setMainTenantInboxTab('compose')}
+              className={`flex-1 py-2 px-3 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 whitespace-nowrap ${
+                mainTenantInboxTab === 'compose'
+                  ? 'bg-blue-600 text-white shadow-lg border border-blue-400'
+                  : 'bg-white/10 text-gray-300 hover:bg-white/20 border border-white/5'
+              }`}
+            >
+              <Mail className="w-3.5 h-3.5 text-amber-400" /> Gig Apps ({messages.filter(m => m.type === 'gig_application').length})
+            </button>
+            <button
+              onClick={() => setMainTenantInboxTab('sent')}
+              className={`flex-1 py-2 px-3 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 whitespace-nowrap ${
+                mainTenantInboxTab === 'sent'
+                  ? 'bg-blue-600 text-white shadow-lg border border-blue-400'
+                  : 'bg-white/10 text-gray-300 hover:bg-white/20 border border-white/5'
+              }`}
+            >
+              <MapPin className="w-3.5 h-3.5 text-emerald-400" /> Nearby Gigs ({gigs.length})
+            </button>
+            <button
+              onClick={() => setMainTenantInboxTab('direct')}
+              className={`flex-1 py-2 px-3 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 whitespace-nowrap ${
+                mainTenantInboxTab === 'direct'
+                  ? 'bg-orange-500 text-white shadow-lg border border-orange-300'
+                  : 'bg-white/10 text-gray-300 hover:bg-white/20 border border-white/5'
+              }`}
+            >
+              <Gift className="w-3.5 h-3.5 text-white" /> Promotions ({messages.filter(m => m.type !== 'gig_application').length})
+            </button>
+          </div>
 
           {/* Modal Content */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4 no-scrollbar">
-            {/* If Main Tenant and on Compose Tab */}
-            {isMainTenant && mainTenantInboxTab === 'compose' ? (
-              <div className="max-w-xl mx-auto w-full space-y-4 pb-8">
-                {/* Audience Header Banner */}
-                <div className="bg-gradient-to-r from-gray-900 via-black to-gray-900 text-white p-4 rounded-3xl border border-white/10 shadow-lg space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 bg-emerald-400 rounded-full animate-pulse" />
-                      <span className="text-[10px] font-black uppercase tracking-widest text-amber-400">
-                        Audience: Every Tenant & User
-                      </span>
-                    </div>
-                    <span className="text-[9px] font-black uppercase px-2.5 py-0.5 rounded-full bg-white/10 text-gray-300">
-                      {allUsersList.length > 0 ? `${allUsersList.length} Accounts Reachable` : 'All Accounts'}
-                    </span>
-                  </div>
-                  <p className="text-xs text-gray-300 leading-snug">
-                    Type your promotion, bonus incentive, or announcement below. When sent, every single registered tenant and user on the platform receives this directly in their personal inbox.
-                  </p>
-                </div>
-
-                {/* Quick Topic Chips */}
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between px-1">
-                    <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider flex items-center gap-1">
-                      <Sparkles className="w-3 h-3 text-amber-500" /> Quick Topic Suggestions (Click to fill)
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    {[
-                      {
-                        label: '🎉 2x Referral Commission',
-                        subj: '🎉 Special Weekend Promotion: 2x Tenant Referral Commission Active Now!',
-                        body: 'Attention all Tenants! For this weekend only, earn double profit commission (R200 per verified Tenant referral). Share your personal referral link now to maximize your passive earnings!'
-                      },
-                      {
-                        label: '💼 New Gigs Available',
-                        subj: '💼 High-Paying Gigs Now Live Across All Cities!',
-                        body: 'New high-paying gigs have just been approved and added to the TimeGiG map! Open your map view, check out local listings in your trade, and apply immediately to secure your spot.'
-                      },
-                      {
-                        label: '⚡ Keep Subscription Active',
-                        subj: '⚡ Keep Your Tenant Subscription Active & Earnings Unlocked',
-                        body: 'Friendly reminder from TimeGiG Administration: Keep your monthly Tenant subscription countdown active to ensure uninterrupted 24/7 passive income, referral tracking, and priority gig listings.'
-                      },
-                      {
-                        label: '📢 Platform Update',
-                        subj: '📢 System Update: Instant Approvals & Faster Payouts',
-                        body: 'We have updated our verification processing speed. New referral applications and payouts are now processed in record time. Thank you for being a vital part of the TimeGiG platform network!'
-                      }
-                    ].map((tpl, i) => (
-                      <button
-                        key={i}
-                        type="button"
-                        onClick={() => {
-                          setPromoSubject(tpl.subj);
-                          setPromoBody(tpl.body);
-                        }}
-                        className="text-left p-2.5 bg-white hover:bg-amber-50/60 border border-gray-200 hover:border-amber-300 rounded-2xl text-[11px] font-bold text-gray-800 transition-all active:scale-95 shadow-sm space-y-0.5 group"
-                      >
-                        <div className="text-black group-hover:text-amber-800 font-black">{tpl.label}</div>
-                        <div className="text-[9px] text-gray-400 truncate font-medium">{tpl.subj}</div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Promotion Type Box Container */}
-                <div className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 space-y-4">
-                  <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-xl bg-amber-400 text-black flex items-center justify-center font-black">
-                        <Send className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <h4 className="font-black text-sm text-black">Compose Promotion Message</h4>
-                        <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">
-                          From: TimeGiG Administration (timegig2026@gmail.com)
-                        </p>
-                      </div>
-                    </div>
-                    {(promoSubject || promoBody) && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setPromoSubject('');
-                          setPromoBody('');
-                        }}
-                        className="text-[10px] font-black uppercase text-gray-400 hover:text-red-500 transition-colors"
-                      >
-                        Clear
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Target Audience Selection */}
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-wider block">
-                      Select Inbox Audience <span className="text-amber-500">*</span>
-                    </label>
-                    <div className="grid grid-cols-2 gap-2 text-[10px] font-black uppercase tracking-wider">
-                      <button
-                        type="button"
-                        onClick={() => setPromoTargetType('all')}
-                        className={`p-3 rounded-2xl border text-left transition-all flex items-center justify-between ${
-                          promoTargetType === 'all'
-                            ? 'bg-black text-white border-black shadow-md'
-                            : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'
-                        }`}
-                      >
-                        <div>
-                          <div className="flex items-center gap-1.5">
-                            <Globe className="w-3.5 h-3.5 text-amber-400" />
-                            <span>All Accounts</span>
-                          </div>
-                          <span className="text-[8px] font-bold text-gray-400 block mt-0.5">Broadcast Everyone</span>
-                        </div>
-                        {promoTargetType === 'all' && <Check className="w-4 h-4 text-emerald-400" />}
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setPromoTargetType('tenants')}
-                        className={`p-3 rounded-2xl border text-left transition-all flex items-center justify-between ${
-                          promoTargetType === 'tenants'
-                            ? 'bg-black text-white border-black shadow-md'
-                            : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'
-                        }`}
-                      >
-                        <div>
-                          <div className="flex items-center gap-1.5">
-                            <Crown className="w-3.5 h-3.5 text-emerald-400" />
-                            <span>Tenants Only</span>
-                          </div>
-                          <span className="text-[8px] font-bold text-gray-400 block mt-0.5">{allTenants.length} Tenants</span>
-                        </div>
-                        {promoTargetType === 'tenants' && <Check className="w-4 h-4 text-emerald-400" />}
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setPromoTargetType('users')}
-                        className={`p-3 rounded-2xl border text-left transition-all flex items-center justify-between ${
-                          promoTargetType === 'users'
-                            ? 'bg-black text-white border-black shadow-md'
-                            : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'
-                        }`}
-                      >
-                        <div>
-                          <div className="flex items-center gap-1.5">
-                            <Users className="w-3.5 h-3.5 text-blue-400" />
-                            <span>Users / Seekers</span>
-                          </div>
-                          <span className="text-[8px] font-bold text-gray-400 block mt-0.5">All Seekers</span>
-                        </div>
-                        {promoTargetType === 'users' && <Check className="w-4 h-4 text-emerald-400" />}
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setPromoTargetType('selected')}
-                        className={`p-3 rounded-2xl border text-left transition-all flex items-center justify-between ${
-                          promoTargetType === 'selected'
-                            ? 'bg-black text-white border-black shadow-md'
-                            : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'
-                        }`}
-                      >
-                        <div>
-                          <div className="flex items-center gap-1.5">
-                            <Target className="w-3.5 h-3.5 text-amber-400" />
-                            <span>Select People</span>
-                          </div>
-                          <span className="text-[8px] font-bold text-gray-400 block mt-0.5">
-                            {selectedPromoRecipientUids.length > 0 ? `${selectedPromoRecipientUids.length} Chosen` : 'Pick Specific'}
-                          </span>
-                        </div>
-                        {promoTargetType === 'selected' && <Check className="w-4 h-4 text-emerald-400" />}
-                      </button>
-                    </div>
-
-                    {/* If Target is 'selected', render multi-select recipient list */}
-                    {promoTargetType === 'selected' && (
-                      <div className="p-3 bg-gray-50 border border-gray-200 rounded-2xl space-y-3 animate-in fade-in duration-200">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-black uppercase tracking-wider text-black">
-                            Pick Recipients ({selectedPromoRecipientUids.length} Selected)
-                          </span>
-                          {selectedPromoRecipientUids.length > 0 && (
-                            <button
-                              type="button"
-                              onClick={() => setSelectedPromoRecipientUids([])}
-                              className="text-[9px] font-black uppercase text-gray-400 hover:text-red-500"
-                            >
-                              Clear Selection
-                            </button>
-                          )}
-                        </div>
-
-                        <div className="relative">
-                          <Search className="w-3.5 h-3.5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                          <input
-                            type="text"
-                            placeholder="Search by name, email, or role..."
-                            value={recipientSearchQuery}
-                            onChange={e => setRecipientSearchQuery(e.target.value)}
-                            className="w-full pl-9 pr-3 py-2 bg-white border border-gray-200 rounded-xl text-xs font-bold outline-none focus:border-black"
-                          />
-                        </div>
-
-                        <div className="max-h-48 overflow-y-auto space-y-1.5 no-scrollbar pr-1">
-                          {allUsersList
-                            .filter(u => u.uid && u.email?.toLowerCase() !== 'timegig2026@gmail.com')
-                            .filter(u => {
-                              if (!recipientSearchQuery.trim()) return true;
-                              const q = recipientSearchQuery.toLowerCase();
-                              const name = `${u.name || ''} ${u.surname || ''}`.toLowerCase();
-                              const email = (u.email || '').toLowerCase();
-                              const role = (u.role || '').toLowerCase();
-                              return name.includes(q) || email.includes(q) || role.includes(q);
-                            })
-                            .map(u => {
-                              const isChecked = selectedPromoRecipientUids.includes(u.uid);
-                              return (
-                                <div
-                                  key={u.uid}
-                                  onClick={() => {
-                                    if (isChecked) {
-                                      setSelectedPromoRecipientUids(prev => prev.filter(id => id !== u.uid));
-                                    } else {
-                                      setSelectedPromoRecipientUids(prev => [...prev, u.uid]);
-                                    }
-                                  }}
-                                  className={`p-2.5 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${
-                                    isChecked
-                                      ? 'bg-black text-white border-black'
-                                      : 'bg-white text-black border-gray-100 hover:border-gray-200'
-                                  }`}
-                                >
-                                  <div className="flex items-center gap-2.5 truncate">
-                                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center font-black text-xs ${
-                                      u.role === 'Tenant' ? 'bg-emerald-500 text-white' : 'bg-blue-500 text-white'
-                                    }`}>
-                                      {u.role === 'Tenant' ? 'T' : 'U'}
-                                    </div>
-                                    <div className="truncate">
-                                      <div className="font-black text-xs truncate">
-                                        {u.name || u.surname ? `${u.name || ''} ${u.surname || ''}`.trim() : 'Registered Member'}
-                                      </div>
-                                      <div className={`text-[9px] truncate ${isChecked ? 'text-gray-300' : 'text-gray-400'}`}>
-                                        {u.email}
-                                      </div>
-                                    </div>
-                                  </div>
-                                  <div className={`w-5 h-5 rounded-md border flex items-center justify-center shrink-0 ${
-                                    isChecked ? 'bg-emerald-500 border-emerald-400 text-white' : 'border-gray-300 bg-gray-50'
-                                  }`}>
-                                    {isChecked && <Check className="w-3.5 h-3.5 stroke-[3]" />}
-                                  </div>
-                                </div>
-                              );
-                            })}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Subject Input */}
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-wider block">
-                      Promotion Subject / Headline <span className="text-amber-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="e.g. 🎉 Special Weekend Promo: Earn Double on Every Tenant Referral!"
-                      value={promoSubject}
-                      onChange={e => setPromoSubject(e.target.value)}
-                      className="w-full p-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-xs font-bold text-black outline-none focus:bg-white focus:border-black focus:ring-2 focus:ring-black/5 transition-all placeholder:text-gray-400"
-                    />
-                  </div>
-
-                  {/* Message Body Type Box */}
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <label className="text-[10px] font-black text-gray-500 uppercase tracking-wider block">
-                        Promotion Message Body <span className="text-amber-500">*</span>
-                      </label>
-                      <span className="text-[9px] font-bold text-gray-400">
-                        {promoBody.length} characters
-                      </span>
-                    </div>
-                    <textarea
-                      placeholder="Type your promotion message here. Every registered tenant and user will see this message in their inbox..."
-                      value={promoBody}
-                      onChange={e => setPromoBody(e.target.value)}
-                      rows={5}
-                      className="w-full p-4 bg-gray-50 border border-gray-200 rounded-2xl text-xs text-black font-medium outline-none focus:bg-white focus:border-black focus:ring-2 focus:ring-black/5 transition-all placeholder:text-gray-400 leading-relaxed min-h-[130px]"
-                    />
-                  </div>
-
-                  {/* Live Recipient Preview */}
-                  {(promoSubject.trim() || promoBody.trim()) && (
-                    <div className="p-3.5 bg-blue-50/70 border border-blue-100 rounded-2xl space-y-2 animate-in fade-in duration-200">
-                      <span className="text-[9px] font-black text-blue-800 uppercase tracking-widest block">
-                        👁️ Recipient Inbox Preview (What Tenants & Users Will See)
-                      </span>
-                      <div className="bg-white p-3.5 rounded-xl border border-blue-200/60 shadow-sm space-y-2">
-                        <div className="flex items-center gap-2">
-                          <div className="w-6 h-6 rounded-lg bg-blue-600 text-white flex items-center justify-center">
-                            <ShieldCheck className="w-3.5 h-3.5" />
-                          </div>
-                          <div>
-                            <h5 className="font-black text-xs text-black">
-                              {promoSubject.trim() || 'Untitled Promotion'}
-                            </h5>
-                            <p className="text-[8px] font-bold text-gray-400 uppercase tracking-widest">
-                              TimeGiG Main Administration • Just now
-                            </p>
-                          </div>
-                        </div>
-                        <p className="text-xs text-gray-700 font-medium whitespace-pre-wrap leading-relaxed">
-                          {promoBody.trim() || 'Type a message above to see preview...'}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Broadcast Send Button */}
-                  <button
-                    disabled={isBroadcasting || !promoSubject.trim() || !promoBody.trim()}
-                    onClick={handleSendPromotion}
-                    className="w-full py-4 bg-black hover:bg-gray-900 text-white font-black rounded-2xl active:scale-95 transition-all text-xs uppercase tracking-widest shadow-xl flex items-center justify-center gap-2.5 disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
-                  >
-                    {isBroadcasting ? (
-                      <div className="flex items-center gap-2">
-                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                        <span>Broadcasting to all tenants & users...</span>
-                      </div>
-                    ) : (
-                      <>
-                        <Zap className="w-4 h-4 text-amber-400 fill-amber-400" />
-                        <span>Send Promotion to Every Tenant & User</span>
-                        <Send className="w-4 h-4 text-white" />
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-            ) : isMainTenant && mainTenantInboxTab === 'sent' ? (
-              /* Sent Promotions Tab for Main Tenant */
-              <div className="max-w-xl mx-auto w-full space-y-3 pb-8">
+          <div className="flex-1 overflow-y-auto p-3 space-y-3 no-scrollbar">
+            {mainTenantInboxTab === 'compose' ? (
+              /* Gig Applications Section */
+              <div className="max-w-xl mx-auto w-full space-y-2 pb-6">
                 {(() => {
-                  const sentList = messages.filter(m => m.isSentCopy || m.isBroadcast || m.senderId === user?.uid);
-                  if (sentList.length === 0) {
-                    return (
-                      <div className="h-64 flex flex-col items-center justify-center text-center p-8 space-y-4 bg-white rounded-3xl border border-gray-100">
-                        <div className="w-16 h-16 bg-gray-100 rounded-3xl flex items-center justify-center text-gray-300">
-                          <Send className="w-8 h-8" />
-                        </div>
-                        <div>
-                          <h4 className="font-black text-black">No Sent Promotions Yet</h4>
-                          <p className="text-xs text-gray-500 mt-1">When you broadcast promotions, they will appear here in your sent history.</p>
-                        </div>
-                        <button
-                          onClick={() => setMainTenantInboxTab('compose')}
-                          className="px-4 py-2 bg-black text-white rounded-xl text-xs font-black uppercase tracking-wider"
-                        >
-                          Type a Promotion Now
-                        </button>
-                      </div>
-                    );
+                  const appMsgs = messages.filter(m => m.type === 'gig_application');
+                  if (appMsgs.length === 0) {
+                    return <div className="p-8 text-center text-gray-400 text-[10px] font-bold uppercase">No Gig Applications Yet</div>;
                   }
-                  return sentList.map(msg => (
-                    <div key={msg.id} className="p-5 rounded-3xl bg-white border border-gray-100 shadow-sm space-y-3">
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-center gap-2.5">
-                          <div className="w-8 h-8 rounded-xl bg-amber-400 text-black flex items-center justify-center font-black">
-                            <Zap className="w-4 h-4" />
-                          </div>
-                          <div>
-                            <h4 className="font-black text-sm text-black">{msg.subject || 'Promotion Broadcast'}</h4>
-                            <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">
-                              Broadcast to All Tenants & Users
-                            </p>
-                          </div>
-                        </div>
-                        <button 
-                          onClick={async () => {
-                            if (confirm('Delete this sent promotion record?')) {
-                              await deleteDoc(doc(db, 'messages', msg.id));
-                            }
-                          }}
-                          className="p-2 text-gray-300 hover:text-red-500 transition-colors"
-                          title="Delete record"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                      <p className="text-xs text-gray-700 leading-relaxed font-medium whitespace-pre-wrap">
-                        {msg.body}
-                      </p>
-                      <div className="pt-2 border-t border-gray-100 flex items-center justify-between text-[9px] font-bold text-gray-400 uppercase tracking-wider">
-                        <span>
-                          {msg.createdAt?.toDate ? msg.createdAt.toDate().toLocaleString() : 'Recently'}
-                        </span>
-                        <span className="bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full border border-emerald-200">
-                          Delivered to Network
-                        </span>
-                      </div>
-                    </div>
-                  ));
-                })()}
-              </div>
-            ) : (
-              /* Received Messages Tab (or default for all regular users/tenants) */
-              <div className="max-w-xl mx-auto w-full space-y-3 pb-8">
-                {(() => {
-                  const displayMsgs = isMainTenant 
-                    ? messages.filter(m => m.recipientId === user?.uid && !m.isSentCopy)
-                    : messages;
-
-                  if (displayMsgs.length === 0) {
+                  return appMsgs.map(msg => {
+                    const appStatus = msg.applicationStatus || 'pending';
                     return (
-                      <div className="h-64 flex flex-col items-center justify-center text-center p-8 space-y-4 bg-white rounded-3xl border border-gray-100">
-                        <div className="w-16 h-16 bg-gray-100 rounded-3xl flex items-center justify-center text-gray-300">
-                          <Mail className="w-8 h-8" />
-                        </div>
-                        <div>
-                          <h4 className="font-black text-black">No messages yet</h4>
-                          <p className="text-xs text-gray-500 mt-1">Updates and promotions from Main Administration will appear here.</p>
-                        </div>
-                      </div>
-                    );
-                  }
-
-                  return displayMsgs.map(msg => {
-                    const isGigApp = msg.type === 'gig_application';
-                    const appStatus = msg.applicationStatus || msg.status || 'pending';
-
-                    return (
-                      <div 
-                        key={msg.id} 
-                        className={`p-5 rounded-3xl border transition-all ${
-                          msg.isRead ? 'bg-white border-gray-100' : 'bg-blue-50/50 border-blue-200 shadow-sm'
-                        }`}
-                      >
-                        <div className="flex items-start justify-between mb-3">
-                          <div className="flex items-center gap-2.5">
-                            <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${
-                              isGigApp ? 'bg-amber-400 text-black font-black' : msg.isRead ? 'bg-gray-100 text-gray-400' : 'bg-blue-600 text-white shadow-sm'
-                            }`}>
-                              {isGigApp ? <Briefcase className="w-4 h-4" /> : <ShieldCheck className="w-4 h-4" />}
+                      <div key={msg.id} className="p-3 rounded-2xl bg-white border border-gray-100 shadow-sm space-y-3">
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-center gap-2">
+                            <div className="w-7 h-7 rounded-xl bg-blue-600 text-white flex items-center justify-center font-black">
+                              <Mail className="w-3.5 h-3.5" />
                             </div>
                             <div>
-                              <div className="flex items-center gap-2">
-                                <h4 className="font-black text-sm text-black">{msg.subject || 'Platform Update'}</h4>
-                                {!msg.isRead && (
-                                  <span className="w-2 h-2 bg-blue-600 rounded-full" />
-                                )}
-                              </div>
-                              <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">
-                                {isGigApp ? `Applicant: ${msg.applicantName || msg.senderName || 'Seeker'}` : (msg.senderName || 'TimeGiG Main Administration')}
-                              </p>
+                              <h4 className="font-black text-xs text-black">{msg.subject}</h4>
+                              <p className="text-[9px] text-gray-400 font-bold">Applicant: {msg.applicantName || 'Seeker'}</p>
                             </div>
                           </div>
                           <button 
-                            onClick={async () => {
-                              if (confirm('Delete this message?')) {
-                                await deleteDoc(doc(db, 'messages', msg.id));
-                              }
-                            }}
-                            className="p-2 text-gray-300 hover:text-red-500 transition-colors"
-                            title="Delete message"
+                            onClick={async () => { if (confirm('Delete application?')) await deleteDoc(doc(db, 'messages', msg.id)); }}
+                            className="p-1 text-gray-300 hover:text-red-500 transition-colors"
                           >
-                            <Trash2 className="w-4 h-4" />
+                            <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
+                        <p className="text-[10px] text-gray-600 leading-relaxed whitespace-pre-wrap bg-gray-50 p-2.5 rounded-xl border border-gray-100">{msg.body}</p>
 
-                        <p className="text-xs text-gray-700 leading-relaxed font-medium whitespace-pre-wrap">
-                          {msg.body}
-                        </p>
+                        {/* Interactive Hire / Decline Actions */}
+                        {appStatus === 'accepted' ? (
+                          <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between text-[10px] font-bold text-emerald-900">
+                            <span className="flex items-center gap-1.5">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                              Applicant Hired & Accepted!
+                            </span>
+                            <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">Hired</span>
+                          </div>
+                        ) : appStatus === 'rejected' ? (
+                          <div className="p-2.5 bg-red-50 border border-red-200 rounded-xl flex items-center justify-between text-[10px] font-bold text-red-900">
+                            <span>Application Declined</span>
+                            <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded-full bg-red-100 text-red-800">Declined</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={async () => {
+                                try {
+                                  const targetGig = gigs.find(g => g.id === msg.gigId);
+                                  const gigLoc = targetGig?.location || msg.gigLocation || position;
 
-                        {/* Interactive Hire / Decline Actions for Gig Applications */}
-                        {isGigApp && (
-                          <div className="mt-4 pt-3 border-t border-gray-100 space-y-2">
-                            {appStatus === 'accepted' ? (
-                              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center justify-between text-xs font-bold text-emerald-900">
-                                <span className="flex items-center gap-1.5">
-                                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                                  Applicant Hired & Accepted!
-                                </span>
-                                <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">Hired</span>
-                              </div>
-                            ) : appStatus === 'rejected' ? (
-                              <div className="p-3 bg-red-50 border border-red-200 rounded-2xl flex items-center justify-between text-xs font-bold text-red-900">
-                                <span>Application Declined</span>
-                                <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-red-100 text-red-800">Declined</span>
-                              </div>
-                             ) : (
-                              <div className="flex items-center gap-2">
-                                <button
-                                  onClick={async () => {
-                                    try {
-                                      const targetGig = gigs.find(g => g.id === msg.gigId);
-                                      const gigLoc = targetGig?.location || msg.gigLocation || position;
+                                  if (msg.appId) {
+                                    await updateDoc(doc(db, 'applications', msg.appId), { status: 'accepted', gigLocation: gigLoc });
+                                  }
+                                  await updateDoc(doc(db, 'messages', msg.id), { applicationStatus: 'accepted', isRead: true });
 
-                                      if (msg.appId) {
-                                        await updateDoc(doc(db, 'applications', msg.appId), { status: 'accepted', gigLocation: gigLoc });
-                                      }
-                                      await updateDoc(doc(db, 'messages', msg.id), { applicationStatus: 'accepted', isRead: true });
+                                  if (msg.applicantUid) {
+                                    await addDoc(collection(db, 'messages'), {
+                                      recipientId: msg.applicantUid,
+                                      senderId: user!.uid,
+                                      senderEmail: profileData.email || user!.email || '',
+                                      senderName: profileData.name ? `${profileData.name} ${profileData.surname}` : 'Gig Owner',
+                                      subject: `🎉 YOU ARE HIRED! Application Accepted for "${msg.gigTitle || 'Gig'}"`,
+                                      body: `Congratulations! Your application for "${msg.gigTitle || 'Gig'}" was ACCEPTED and you have been HIRED!\n\nContact owner at ${profileData.contact || user!.email} to coordinate work details. Map navigated to destination.`,
+                                      type: 'gig_hired',
+                                      gigId: msg.gigId || '',
+                                      gigTitle: msg.gigTitle || 'Gig',
+                                      gigLocation: gigLoc || null,
+                                      budget: msg.budget || 0,
+                                      isRead: false,
+                                      createdAt: serverTimestamp()
+                                    });
+                                  }
 
-                                      if (msg.applicantUid) {
-                                        await addDoc(collection(db, 'messages'), {
-                                          recipientId: msg.applicantUid,
-                                          senderId: user!.uid,
-                                          senderEmail: profileData.email || user!.email || '',
-                                          senderName: profileData.name ? `${profileData.name} ${profileData.surname}` : 'Gig Owner',
-                                          subject: `🎉 YOU ARE HIRED! Application Accepted for "${msg.gigTitle || 'Gig'}"`,
-                                          body: `Congratulations! Your application for "${msg.gigTitle || 'Gig'}" was ACCEPTED and you have been HIRED!\n\nContact the owner at ${profileData.contact || user!.email} to coordinate work details. Map navigated to destination.`,
-                                          type: 'gig_hired',
-                                          gigId: msg.gigId || '',
-                                          gigTitle: msg.gigTitle || 'Gig',
-                                          gigLocation: gigLoc || null,
-                                          budget: msg.budget || 0,
-                                          isRead: false,
-                                          createdAt: serverTimestamp()
-                                        });
-                                      }
+                                  playSmoothReceiveSound();
 
-                                      playSmoothReceiveSound();
+                                  if (gigLoc) {
+                                    setPosition(gigLoc);
+                                    setActiveAcceptedGig({
+                                      id: msg.gigId || '',
+                                      title: msg.gigTitle || 'Gig Destination',
+                                      location: gigLoc,
+                                      budget: msg.budget,
+                                      applicantName: msg.applicantName
+                                    });
+                                  }
 
-                                      if (gigLoc) {
-                                        setPosition(gigLoc);
-                                        setActiveAcceptedGig({
-                                          id: msg.gigId || '',
-                                          title: msg.gigTitle || 'Gig Destination',
-                                          location: gigLoc,
-                                          budget: msg.budget,
-                                          applicantName: msg.applicantName
-                                        });
-                                      }
+                                  setActiveTab('map');
+                                  setShowInbox(false);
+                                  alert(`🎉 You have HIRED ${msg.applicantName || 'the applicant'}! Map navigated to gig destination.`);
+                                } catch (e) {
+                                  console.warn('Accept application error:', e);
+                                  setError('Failed to hire applicant.');
+                                }
+                              }}
+                              className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[10px] rounded-xl uppercase tracking-wider shadow-sm active:scale-95 transition-all flex items-center justify-center gap-1.5"
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5" /> Accept & Hire
+                            </button>
+                            <button
+                              onClick={async () => {
+                                try {
+                                  if (msg.appId) {
+                                    await updateDoc(doc(db, 'applications', msg.appId), { status: 'rejected' });
+                                  }
+                                  await updateDoc(doc(db, 'messages', msg.id), { applicationStatus: 'rejected', isRead: true });
 
-                                      setActiveTab('map');
-                                      setShowInbox(false);
-                                      alert(`🎉 You have HIRED ${msg.applicantName || 'the applicant'}! Map navigated to gig destination.`);
-                                    } catch (e) {
-                                      console.warn('Accept application error:', e);
-                                      setError('Failed to hire applicant.');
-                                    }
-                                  }}
-                                  className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl uppercase tracking-wider shadow-md active:scale-95 transition-all flex items-center justify-center gap-1.5"
-                                >
-                                  <CheckCircle2 className="w-4 h-4" /> Accept & Hire Applicant
-                                </button>
-                                <button
-                                  onClick={async () => {
-                                    try {
-                                      if (msg.appId) {
-                                        await updateDoc(doc(db, 'applications', msg.appId), { status: 'rejected' });
-                                      }
-                                      await updateDoc(doc(db, 'messages', msg.id), { applicationStatus: 'rejected', isRead: true });
-
-                                      if (msg.applicantUid) {
-                                        await addDoc(collection(db, 'messages'), {
-                                          recipientId: msg.applicantUid,
-                                          senderId: user!.uid,
-                                          senderEmail: profileData.email || user!.email || '',
-                                          senderName: profileData.name ? `${profileData.name} ${profileData.surname}` : 'Gig Owner',
-                                          subject: `Application Update: ${msg.gigTitle || 'Gig'}`,
-                                          body: `Your application for "${msg.gigTitle || 'Gig'}" was declined by the owner.`,
-                                          type: 'gig_declined',
-                                          isRead: false,
-                                          createdAt: serverTimestamp()
-                                        });
-                                      }
-                                      alert('Application declined.');
-                                    } catch (e) {
-                                      console.warn('Decline application error:', e);
-                                      setError('Failed to decline application.');
-                                    }
-                                  }}
-                                  className="px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-xs rounded-xl uppercase tracking-wider active:scale-95 transition-all"
-                                >
-                                  Decline
-                                </button>
-                              </div>
-                            )}
+                                  if (msg.applicantUid) {
+                                    await addDoc(collection(db, 'messages'), {
+                                      recipientId: msg.applicantUid,
+                                      senderId: user!.uid,
+                                      senderEmail: profileData.email || user!.email || '',
+                                      senderName: profileData.name ? `${profileData.name} ${profileData.surname}` : 'Gig Owner',
+                                      subject: `Application Update: ${msg.gigTitle || 'Gig'}`,
+                                      body: `Your application for "${msg.gigTitle || 'Gig'}" was declined by the owner.`,
+                                      type: 'gig_declined',
+                                      isRead: false,
+                                      createdAt: serverTimestamp()
+                                    });
+                                  }
+                                  alert('Application declined.');
+                                } catch (e) {
+                                  console.warn('Decline application error:', e);
+                                  setError('Failed to decline application.');
+                                }
+                              }}
+                              className="px-3 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-[10px] rounded-xl uppercase tracking-wider active:scale-95 transition-all"
+                            >
+                              Decline
+                            </button>
                           </div>
                         )}
-
-                        <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between">
-                          <span className="text-[9px] font-black text-gray-400 uppercase tracking-tighter">
-                            {msg.createdAt?.toDate ? msg.createdAt.toDate().toLocaleString() : 'Recently'}
-                          </span>
-                          {!msg.isRead && (
-                            <button 
-                              onClick={() => updateDoc(doc(db, 'messages', msg.id), { isRead: true })}
-                              className="text-[9px] font-black text-blue-600 uppercase tracking-widest hover:underline"
-                            >
-                              Mark as read
-                            </button>
-                          )}
-                        </div>
                       </div>
                     );
                   });
                 })()}
               </div>
+            ) : mainTenantInboxTab === 'sent' ? (
+              /* Nearby Gigs Section */
+              <div className="max-w-xl mx-auto w-full space-y-2 pb-6">
+                {gigs.length === 0 ? (
+                  <div className="p-8 text-center text-gray-400 text-[10px] font-bold uppercase">No Nearby Gigs Available</div>
+                ) : (
+                  gigs.map(gig => (
+                    <div key={gig.id} className="p-3.5 rounded-2xl bg-white/80 backdrop-blur-md border border-white/20 shadow-sm space-y-2">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-xl bg-emerald-500 text-white flex items-center justify-center font-black">
+                            <MapPin className="w-3.5 h-3.5" />
+                          </div>
+                          <div>
+                            <h4 className="font-black text-xs text-black">{gig.description || 'Gig Offer'}</h4>
+                            <p className="text-[9px] text-emerald-600 font-bold">Budget: R{gig.budget || 0}</p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => {
+                            if (gig.location) {
+                              setPosition(gig.location);
+                              setActiveTab('map');
+                              setShowInbox(false);
+                            }
+                          }}
+                          className="px-3 py-1.5 bg-black text-white rounded-xl text-[9px] font-black uppercase tracking-wider active:scale-95 transition-all"
+                        >
+                          View on Map
+                        </button>
+                      </div>
+                      <p className="text-[10px] text-gray-600">{gig.contactNumber ? `Contact: ${gig.contactNumber}` : ''}</p>
+                    </div>
+                  ))
+                )}
+              </div>
+            ) : (
+              /* Promotions Tab (Takealot Style Deals & Broadcasts) */
+              <div className="max-w-xl mx-auto w-full space-y-3 pb-6">
+                {/* Takealot-styled Featured Banner */}
+                <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-orange-500 rounded-2xl p-4 text-white shadow-xl border border-white/20 space-y-2 relative overflow-hidden">
+                  <div className="absolute top-0 right-0 p-4 opacity-10">
+                    <Gift className="w-24 h-24 text-white" />
+                  </div>
+                  <span className="bg-white/20 text-white text-[8px] font-black uppercase px-2.5 py-0.5 rounded-full tracking-widest">
+                    🔥 Daily Deal & Promo Spotlight
+                  </span>
+                  <h4 className="text-base font-black tracking-tight">Earn 2x Commission This Weekend!</h4>
+                  <p className="text-[11px] text-white/90 leading-snug">
+                    Boost your earnings as a TimeGiG Tenant. Refer new verified users and tenants during our promotional window to double your rewards.
+                  </p>
+                </div>
+
+                {(() => {
+                  const promoMsgs = messages.filter(m => m.type !== 'gig_application');
+                  if (promoMsgs.length === 0) {
+                    return (
+                      <div className="p-8 text-center bg-white/40 backdrop-blur-md rounded-2xl border border-white/20 space-y-2">
+                        <Gift className="w-8 h-8 text-orange-500 mx-auto" />
+                        <p className="text-gray-700 font-bold text-xs">No active administrative promotions right now.</p>
+                      </div>
+                    );
+                  }
+                  return promoMsgs.map(msg => (
+                    <div key={msg.id} className="p-4 rounded-2xl bg-white/80 backdrop-blur-md border border-white/20 shadow-md space-y-2 relative overflow-hidden group">
+                      <div className="absolute top-0 left-0 bottom-0 w-1.5 bg-orange-500" />
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-xl bg-orange-500 text-white flex items-center justify-center font-black shadow-sm">
+                            <Gift className="w-3.5 h-3.5" />
+                          </div>
+                          <div>
+                            <h4 className="font-black text-xs text-black">{msg.subject}</h4>
+                            <p className="text-[8px] text-orange-600 font-bold uppercase tracking-wider">Takealot Deal & Promotion</p>
+                          </div>
+                        </div>
+                        {canManagePromotions && (
+                          <button 
+                            onClick={async () => { if (confirm('Delete promotion?')) await deleteDoc(doc(db, 'messages', msg.id)); }}
+                            className="p-1 text-gray-400 hover:text-red-500 transition-colors"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-gray-700 leading-relaxed whitespace-pre-wrap bg-white/50 p-3 rounded-xl border border-gray-100 font-medium">{msg.body}</p>
+                      <div className="flex items-center justify-between text-[8px] font-black uppercase text-gray-400 pt-1">
+                        <span>{msg.createdAt?.toDate ? msg.createdAt.toDate().toLocaleString() : 'Recently'}</span>
+                        <span className="text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100">Verified Deal</span>
+                      </div>
+                    </div>
+                  ));
+                })()}
+              </div>
             )}
+
           </div>
         </div>
       )}
@@ -5500,10 +5225,10 @@ export default function App() {
               <Gift className="w-10 h-10 text-blue-600" />
             </div>
             <div className="space-y-2">
-              <span className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em] bg-blue-50 px-3 py-1 rounded-full">Tenant Referral Invite</span>
-              <h3 className="text-2xl font-black text-black tracking-tight">Welcome to TimeGiG!</h3>
-              <p className="text-gray-500 text-sm leading-relaxed">
-                You were invited by a partner Tenant to join our verified on-demand gig network.
+              <span className="text-[10px] font-black text-blue-400 uppercase tracking-[0.2em] bg-blue-500/20 px-3 py-1 rounded-full">Trusted Independent App</span>
+              <h3 className="text-2xl font-black text-white tracking-tight">Welcome to TimeGiG!</h3>
+              <p className="text-gray-300 text-xs leading-relaxed">
+                TimeGiG was built because of unemployment and is a trusted independent app connecting local job seekers with gig owners. You were invited by a partner Tenant to join our verified on-demand gig network.
               </p>
               <div className="bg-gray-50 p-3.5 rounded-xl border border-gray-100 text-xs text-gray-700 font-medium text-left space-y-1.5">
                 <div className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-500 shrink-0" /> Find on-demand gigs near you on the live map</div>
