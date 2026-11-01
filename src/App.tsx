@@ -7,7 +7,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, useMap, useMapEvents, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
-import { MapPin, Compass, Search, LocateFixed, Zap, X, Plus, Minus, Layers, Check, Camera, FileText, CreditCard, Clock, ChevronLeft, Upload, RefreshCw, Scan, LayoutGrid, Users, Trash2, User, Mail, Phone, Link2, Briefcase, Star, MapPinned, Lock, Unlock, Globe, Target, LogIn, LogOut, Maximize2, CheckCircle2, Sparkles, ShieldCheck, Gift, HelpCircle, Settings, Volume2, VolumeX, Bell, AlertTriangle, ShieldAlert, Crown, AlertCircle, Inbox, Archive, Send, Eye, EyeOff, ShoppingBag, MessageSquare, Megaphone } from 'lucide-react';
+import { MapPin, Compass, Search, LocateFixed, Zap, X, Plus, Minus, Layers, Check, Camera, FileText, CreditCard, Clock, ChevronLeft, Upload, RefreshCw, Scan, LayoutGrid, Users, Trash2, User, Mail, Phone, Link2, Briefcase, Star, MapPinned, Lock, Unlock, Globe, Target, LogIn, LogOut, Maximize2, CheckCircle2, Sparkles, ShieldCheck, HelpCircle, Settings, Volume2, VolumeX, Bell, AlertTriangle, ShieldAlert, Crown, AlertCircle, Inbox, Archive, Send, Eye, EyeOff, ShoppingBag, MessageSquare, Megaphone } from 'lucide-react';
 import * as faceapi from 'face-api.js';
 import { auth, db } from './lib/firebase';
 import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut, User as FirebaseUser, signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
@@ -2555,7 +2555,7 @@ export default function App() {
               onClick={() => setShowWelcomeModal(true)}
               className="pointer-events-auto mx-auto bg-black text-white px-4 py-2 rounded-full shadow-lg border border-white/20 flex items-center gap-2 text-xs font-bold active:scale-95 transition-all"
             >
-              <Gift className="w-4 h-4 text-emerald-400" />
+              <Sparkles className="w-4 h-4 text-emerald-400" />
               <span>Invited by Tenant • View Referral Benefits</span>
             </button>
           )}
@@ -4110,7 +4110,7 @@ export default function App() {
                   </h3>
                   {referrals.length === 0 ? (
                     <div className="text-center py-16 bg-black/40 backdrop-blur-md rounded-[2rem] border border-dashed border-white/20 space-y-2 text-white">
-                      <Gift className="w-8 h-8 text-gray-400 mx-auto" />
+                      <Users className="w-8 h-8 text-gray-400 mx-auto" />
                       <p className="text-gray-300 font-bold uppercase tracking-widest text-xs">No referral applications found</p>
                       <p className="text-gray-400 text-[11px]">Share your link above to start receiving tenant & user signup commissions!</p>
                     </div>
@@ -4523,7 +4523,7 @@ export default function App() {
               className={`flex flex-col items-center gap-0.5 transition-all active:scale-90 relative ${activeTab === 'referrals' ? 'text-black font-black' : 'text-gray-500 hover:text-black'}`}
               title="Total Refs"
             >
-              <Gift className="w-5 h-5 stroke-[2]" />
+              <Users className="w-5 h-5 stroke-[2]" />
               {(activeTab !== 'referrals' || userRole === 'User') && <span className="text-[9px] font-bold uppercase tracking-[0.1em]">Refs</span>}
               {(() => {
                 const pendingCount = referrals.filter(r => r.status === 'pending').length;
@@ -4731,7 +4731,7 @@ export default function App() {
           <div className="p-3 pt-4 flex items-center justify-between bg-[#0b1a30]/80 backdrop-blur-2xl border-b border-white/10 text-white shadow-lg shrink-0">
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-xl bg-orange-500 text-white flex items-center justify-center font-black shadow-md">
-                <Gift className="w-4 h-4" />
+                <Megaphone className="w-4 h-4" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
@@ -4821,7 +4821,7 @@ export default function App() {
                   : 'bg-white/10 text-gray-300 hover:bg-white/20 border border-white/5'
               }`}
             >
-              <Gift className="w-3.5 h-3.5 text-white" /> Promotions ({messages.filter(m => m.type !== 'gig_application' && m.type !== 'feedback').length})
+              <Megaphone className="w-3.5 h-3.5 text-white" /> Promotions ({messages.filter(m => m.type !== 'gig_application' && m.type !== 'feedback').length})
             </button>
             <button
               onClick={() => setMainTenantInboxTab('feedback')}
@@ -5120,7 +5120,7 @@ export default function App() {
                 {/* Featured Promotion Banner */}
                 <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-orange-500 rounded-2xl p-4 text-white shadow-xl border border-white/20 space-y-2 relative overflow-hidden">
                   <div className="absolute top-0 right-0 p-4 opacity-10">
-                    <Gift className="w-24 h-24 text-white" />
+                    <Megaphone className="w-24 h-24 text-white" />
                   </div>
                   <span className="bg-white/20 text-white text-[8px] font-black uppercase px-2.5 py-0.5 rounded-full tracking-widest">
                     🔥 Daily Deal & Promotion Spotlight
@@ -5142,7 +5142,7 @@ export default function App() {
                   if (promoMsgs.length === 0) {
                     return (
                       <div className="p-8 text-center bg-white/40 backdrop-blur-md rounded-2xl border border-white/20 space-y-2">
-                        <Gift className="w-8 h-8 text-orange-500 mx-auto" />
+                        <Megaphone className="w-8 h-8 text-orange-500 mx-auto" />
                         <p className="text-gray-700 font-bold text-xs">No active administrative promotions right now.</p>
                       </div>
                     );
@@ -5153,7 +5153,7 @@ export default function App() {
                       <div className="flex items-start justify-between">
                         <div className="flex items-center gap-2">
                           <div className="w-7 h-7 rounded-xl bg-orange-500 text-white flex items-center justify-center font-black shadow-sm">
-                            <Gift className="w-3.5 h-3.5" />
+                            <Sparkles className="w-3.5 h-3.5" />
                           </div>
                           <div>
                             <h4 className="font-black text-xs text-black">{msg.subject}</h4>
@@ -5662,7 +5662,7 @@ export default function App() {
               <X className="w-5 h-5" />
             </button>
             <div className="w-20 h-20 bg-blue-50 text-blue-600 rounded-3xl flex items-center justify-center mx-auto shadow-md">
-              <Gift className="w-10 h-10 text-blue-600" />
+              <ShieldCheck className="w-10 h-10 text-blue-600" />
             </div>
             <div className="space-y-2">
               <span className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em] bg-blue-50 px-3 py-1 rounded-full">Trusted Independent App</span>
