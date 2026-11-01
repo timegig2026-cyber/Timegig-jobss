@@ -1397,7 +1397,7 @@ export default function App() {
 
   // Listen for all users for Seekers feature and Overseer center
   useEffect(() => {
-    if (!db || !user) {
+    if (!db) {
       setAllUsersList([]);
       return;
     }
@@ -2152,7 +2152,7 @@ export default function App() {
     setUser(null);
     setUserRole('User');
     setIsApproved(false);
-    setActiveTab('map');
+    setActiveTab('auth');
   };
 
   const validateCoords = (lat: number, lng: number): boolean => {
@@ -3070,11 +3070,7 @@ export default function App() {
               </Marker>
             )}
             {/* Gig Posts on the Map (Available Gigs Only) */}
-            {gigs.filter(g => {
-              const posterUser = allUsersList.find(u => u.uid === g.userId);
-              const isTenantPost = g.userRole === 'Tenant' || g.isTenant || g.userEmail === 'timegig2026@gmail.com' || posterUser?.role === 'Tenant' || posterUser?.email === 'timegig2026@gmail.com';
-              return !isTenantPost;
-            }).map(gig => {
+            {gigs.map(gig => {
               if (!gig.location || !Array.isArray(gig.location) || gig.location.length < 2) return null;
               const isMyGig = gig.userId === user?.uid;
               const gigDesc = gig.description || '';
@@ -3356,13 +3352,13 @@ export default function App() {
                     </div>
                   )}
                   {verificationStep === 'id' && (
-                    <div className="flex-1 flex flex-col items-center text-center">
-                      <div className="w-20 h-20 bg-purple-50 rounded-3xl flex items-center justify-center mb-6 text-purple-600">
-                        <FileText className="w-10 h-10" />
+                    <div className="flex-1 flex flex-col items-center text-center overflow-hidden">
+                      <div className="w-12 h-12 bg-purple-50 rounded-2xl flex items-center justify-center mb-2 text-purple-600 shrink-0">
+                        <FileText className="w-6 h-6" />
                       </div>
-                      <h3 className="text-2xl font-black text-black mb-2">ID Documents</h3>
-                      <p className="text-gray-500 text-sm mb-10 leading-relaxed">Upload a clear photo of your ID or Passport to continue.</p>
-                      <label className="w-full aspect-[4/3] bg-gray-50 rounded-3xl border-2 border-dashed border-gray-200 flex flex-col items-center justify-center mb-10 group cursor-pointer hover:border-purple-400 transition-colors overflow-hidden">
+                      <h3 className="text-lg font-black text-black mb-0.5 shrink-0">ID Documents</h3>
+                      <p className="text-gray-500 text-[11px] mb-3 leading-relaxed shrink-0">Upload a clear photo of your ID or Passport to continue.</p>
+                      <label className="w-full flex-1 min-h-[160px] bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200 flex flex-col items-center justify-center mb-3 group cursor-pointer hover:border-purple-400 transition-colors overflow-hidden">
                         <input type="file" accept="image/*" className="hidden" onChange={(e) => {
                           const file = e.target.files?.[0];
                           if (file) {
@@ -3378,30 +3374,30 @@ export default function App() {
                           <img src={idDocument} className="w-full h-full object-cover" alt="ID Preview" />
                         ) : (
                           <>
-                            <Upload className="w-8 h-8 text-gray-300 mb-2 group-hover:text-purple-400" />
-                            <span className="text-xs font-bold text-gray-400 group-hover:text-purple-500 uppercase tracking-widest">Upload ID Card / Passport</span>
+                            <Upload className="w-6 h-6 text-gray-300 mb-1 group-hover:text-purple-400" />
+                            <span className="text-[10px] font-bold text-gray-400 group-hover:text-purple-500 uppercase tracking-widest">Upload ID Card / Passport</span>
                           </>
                         )}
                       </label>
-                      <button onClick={() => { if (idDocument) setVerificationStep('pop'); }} disabled={!idDocument} className={`w-full py-5 font-bold rounded-2xl active:scale-95 transition-all shadow-lg ${idDocument ? 'bg-black text-white' : 'bg-gray-100 text-gray-400'}`}>Submit ID</button>
+                      <button onClick={() => { if (idDocument) setVerificationStep('pop'); }} disabled={!idDocument} className={`w-full py-3.5 font-bold rounded-2xl active:scale-95 transition-all shadow-md text-xs shrink-0 ${idDocument ? 'bg-black text-white' : 'bg-gray-100 text-gray-400'}`}>Submit ID</button>
                     </div>
                   )}
                   {verificationStep === 'pop' && (
-                    <div className="flex-1 flex flex-col items-center text-center">
-                      <div className="w-20 h-20 bg-emerald-50 rounded-3xl flex items-center justify-center mb-6 text-emerald-600">
-                        {isReferralUser && !isApproved ? <Sparkles className="w-10 h-10" /> : <CreditCard className="w-10 h-10" />}
+                    <div className="flex-1 flex flex-col items-center text-center overflow-hidden">
+                      <div className="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center mb-2 text-emerald-600 shrink-0">
+                        {isReferralUser && !isApproved ? <Sparkles className="w-6 h-6" /> : <CreditCard className="w-6 h-6" />}
                       </div>
-                      <h3 className="text-2xl font-black text-black mb-2">
+                      <h3 className="text-lg font-black text-black mb-0.5 shrink-0">
                         {isReferralUser && !isApproved ? 'Claim Free Trial' : 'Proof of Payment'}
                       </h3>
-                      <p className="text-gray-500 text-sm mb-10 leading-relaxed">
+                      <p className="text-gray-500 text-[11px] mb-3 leading-relaxed shrink-0">
                         {isReferralUser && !isApproved 
-                          ? `You are eligible for a 30-day free trial of ${selectedPlan}. No payment is required today. Click below to submit your trial request.`
+                          ? `You are eligible for a 30-day free trial of ${selectedPlan}. No payment is required today.`
                           : `Upload the proof of payment for your ${selectedPlan} activation.`}
                       </p>
                       
                       {!(isReferralUser && !isApproved) && (
-                        <label className="w-full aspect-[16/9] bg-gray-50 rounded-3xl border-2 border-dashed border-gray-200 flex flex-col items-center justify-center mb-10 group cursor-pointer hover:border-emerald-400 transition-colors overflow-hidden">
+                        <label className="w-full flex-1 min-h-[160px] bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200 flex flex-col items-center justify-center mb-3 group cursor-pointer hover:border-emerald-400 transition-colors overflow-hidden">
                           <input type="file" accept="image/*" className="hidden" onChange={(e) => {
                             const file = e.target.files?.[0];
                             if (file) {
@@ -3417,8 +3413,8 @@ export default function App() {
                             <img src={popDocument} className="w-full h-full object-cover" alt="POP Preview" />
                           ) : (
                             <>
-                              <Upload className="w-8 h-8 text-gray-300 mb-2 group-hover:text-emerald-400" />
-                              <span className="text-xs font-bold text-gray-400 group-hover:text-emerald-500 uppercase tracking-widest">Upload Proof of Payment</span>
+                              <Upload className="w-6 h-6 text-gray-300 mb-1 group-hover:text-emerald-400" />
+                              <span className="text-[10px] font-bold text-gray-400 group-hover:text-emerald-500 uppercase tracking-widest">Upload Proof of Payment</span>
                             </>
                           )}
                         </label>
@@ -3510,7 +3506,7 @@ export default function App() {
                         <div className="absolute inset-0 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
                       </div>
                       <h3 className="text-3xl font-black text-black mb-4 tracking-tight">Congratulations!</h3>
-                      <p className="text-gray-500 text-sm mb-8 leading-relaxed font-medium">Your documents have been submitted successfully. Our team is currently reviewing your application.</p>
+                      <p className="text-gray-500 text-sm mb-8 leading-relaxed font-medium">Your documents have been submitted successfully. A partner Tenant will now review your application.</p>
                       <div className="bg-amber-50 text-amber-800 font-bold py-3 px-6 rounded-full text-xs uppercase tracking-widest mb-10">Review takes about 15 to 25 minutes</div>
                       <button onClick={() => { setVerificationStep(null); setActiveTab(isApproved ? 'map' : 'profile'); }} className="w-full py-4 text-black font-bold border-2 border-black rounded-2xl active:scale-95 transition-all">{isApproved ? 'Go to Map' : 'Go to Profile'}</button>
                     </div>
@@ -4492,7 +4488,12 @@ export default function App() {
                           });
                           setProfileLocked(true);
                           playSmoothReceiveSound();
-                          setShowReferralActivatedPopup(true);
+                          if (!isApproved) {
+                            setActiveTab('activation');
+                            alert('Profile saved! Now complete Step 3: Upload Selfie & ID for tenant review.');
+                          } else {
+                            setShowReferralActivatedPopup(true);
+                          }
                         } catch (err) { console.warn('Profile save notice:', err); }
                       } else {
                         setError('Log in to save your profile.');
@@ -4960,7 +4961,7 @@ export default function App() {
         )}
 
       {/* Auth View & Feature Lock Screen for Unregistered Users */}
-      <div className={`absolute inset-0 bg-black/45 backdrop-blur-xl z-[50] transition-transform duration-300 flex flex-col items-center justify-center p-4 overflow-y-auto no-scrollbar ${activeTab === 'auth' ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0 pointer-events-none'}`}>
+      <div className={`absolute inset-0 bg-black/20 backdrop-blur-sm z-[50] transition-transform duration-300 flex flex-col items-center justify-center p-4 overflow-y-auto no-scrollbar ${activeTab === 'auth' ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0 pointer-events-none'}`}>
         <div className="w-full max-w-sm bg-white rounded-3xl p-5 shadow-2xl border border-gray-100 flex flex-col items-center text-center space-y-3.5 my-auto">
           
           {/* Lock Header Badge */}
@@ -5050,8 +5051,8 @@ export default function App() {
         </div>
       </div>
 
-      {/* Bottom Menu Bar - Visible to users across app features */}
-      {activeTab !== 'auth' && (
+      {/* Bottom Menu Bar - Always visible unless doing document upload sub-steps */}
+      {verificationStep === null && (
         <div className="fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-gray-100 flex items-center justify-around px-4 z-[9999] pb-[env(safe-area-inset-bottom)] shadow-lg shrink-0">
           {/* 1. Tenant Dashboard */}
           <button 
