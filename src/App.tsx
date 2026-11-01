@@ -28,21 +28,21 @@ function ZoomControls({ isSatellite, setIsSatellite }: { isSatellite: boolean, s
     <div className="flex flex-col gap-2">
       <div className="flex flex-col bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden">
         <button
-          onClick={() => map.zoomIn()}
+          onClick={() => { (window as any).playClick?.(); map.zoomIn(); }}
           className="p-3 hover:bg-gray-50 border-b border-gray-100 text-black transition-colors"
           title="Zoom In"
         >
           <Plus className="w-5 h-5" />
         </button>
         <button
-          onClick={() => map.zoomOut()}
+          onClick={() => { (window as any).playClick?.(); map.zoomOut(); }}
           className="p-3 hover:bg-gray-50 border-b border-gray-100 text-black transition-colors"
           title="Zoom Out"
         >
           <Minus className="w-5 h-5" />
         </button>
         <button
-          onClick={() => setIsSatellite(!isSatellite)}
+          onClick={() => { (window as any).playClick?.(); setIsSatellite(!isSatellite); }}
           className={`p-3 hover:bg-gray-50 transition-colors ${isSatellite ? 'text-blue-600 bg-blue-50' : 'text-black'}`}
           title="Toggle Satellite View"
         >
@@ -611,6 +611,37 @@ export default function App() {
       console.warn('Audio alarm sound notice:', e);
     }
   }, []);
+
+  // Smooth Click Sound (short soft chime: G6)
+  const playSmoothClickSound = useCallback(() => {
+    if (!soundEnabledRef.current) return;
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      if (ctx.state === 'suspended') {
+        ctx.resume().catch(() => {});
+      }
+      const now = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(1567.98, now); // G6
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(0.1, now + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.15);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.2);
+    } catch (e) {
+      console.warn('Audio click sound notice:', e);
+    }
+  }, []);
+
+  useEffect(() => {
+    (window as any).playClick = playSmoothClickSound;
+  }, [playSmoothClickSound]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -2219,8 +2250,8 @@ export default function App() {
             >
               <button
                 type="button"
-                onClick={() => setActiveTab('profile')}
-                className="w-10 h-10 rounded-full overflow-hidden border border-gray-200 shadow-sm ml-1 hover:scale-105 transition-all"
+                onClick={() => { playSmoothClickSound(); setActiveTab('profile'); setVerificationStep(null); }}
+                className="w-10 h-10 rounded-full overflow-hidden border border-gray-100 shadow-sm ml-1 hover:scale-105 transition-all"
                 title="Profile"
               >
                 {selfieImage ? (
@@ -2242,13 +2273,14 @@ export default function App() {
                 className="flex-1 px-3 py-2.5 bg-transparent outline-none text-black placeholder-gray-400 text-sm"
               />
               {searchQuery && (
-                <button type="button" onClick={() => {setSearchQuery(''); setSuggestions([]); setShowSuggestions(false);}} className="p-2 text-gray-400">
+                <button type="button" onClick={() => { playSmoothClickSound(); setSearchQuery(''); setSuggestions([]); setShowSuggestions(false);}} className="p-2 text-gray-400">
                   <X className="w-4 h-4" />
                 </button>
               )}
               <button
                 type="submit"
                 disabled={isSearching}
+                onClick={playSmoothClickSound}
                 className="p-2.5 bg-black text-white rounded-lg transition-all disabled:opacity-50 mr-1"
               >
                 {isSearching ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Search className="w-5 h-5" />}
@@ -2370,15 +2402,31 @@ export default function App() {
           >
             {isSatellite ? <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" /> : <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />}
             <div className="absolute bottom-24 right-4 z-[1000] flex flex-col gap-2 pointer-events-auto">
+              <button 
+                onClick={() => { playSmoothClickSound(); setShowInbox(true); }}
+                className="p-3 bg-white text-black rounded-xl shadow-xl border border-gray-100 flex items-center justify-center transition-all active:scale-95 relative hover:bg-gray-50"
+                title="Inbox & Promotions"
+              >
+                <div className="relative">
+                  <Inbox className="w-5 h-5" />
+                  {messages.some(m => !m.isRead) && (
+                    <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 border-2 border-white rounded-full animate-pulse" />
+                  )}
+                </div>
+              </button>
+              {userRole === 'User' && (
+                <button 
+                  onClick={() => { playSmoothClickSound(); setActiveTab(activeTab === 'shop' ? 'map' : 'shop'); setVerificationStep(null); }} 
+                  className={`p-3 rounded-xl shadow-xl border border-gray-100 flex items-center justify-center transition-all active:scale-95 relative ${activeTab === 'shop' ? 'bg-black text-white' : 'bg-white text-black hover:bg-gray-50'}`}
+                  title="Shop"
+                >
+                  <ShoppingBag className="w-5 h-5" />
+                  <span className="absolute -top-1 -right-2 bg-amber-500 text-white text-[6px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-tighter">CONSTRUCTION</span>
+                </button>
+              )}
               <ZoomControls isSatellite={isSatellite} setIsSatellite={setIsSatellite} />
               <button
-                onClick={() => setActiveTab('profile')}
-                className="p-3 bg-white text-black rounded-xl shadow-xl border border-gray-100 flex items-center justify-center"
-              >
-                <User className="w-5 h-5" />
-              </button>
-              <button
-                onClick={() => requestLocation(false)}
+                onClick={() => { playSmoothClickSound(); requestLocation(false); }}
                 disabled={isLocating}
                 className="p-3 bg-white text-black rounded-xl shadow-xl border border-gray-100 flex items-center justify-center"
               >
@@ -2386,6 +2434,7 @@ export default function App() {
               </button>
               <button
                 onClick={() => {
+                  playSmoothClickSound();
                   if (!isProfileComplete()) {
                     setActiveTab('profile');
                     setError('Please complete your profile before creating a gig.');
@@ -2685,30 +2734,47 @@ export default function App() {
                           if (popDocument && selfieImage && idDocument && user) {
                             try {
                               // Check referral limits
-                              const referrerId = profileData.referrerId || localStorage.getItem('timegig_ref') || '';
-                              if (referrerId) {
-                                const q = query(collection(db, 'verifications'), where('referrerId', '==', referrerId));
+                              // Resolve final referrer
+                              let finalReferrerId = profileData.referrerId || localStorage.getItem('timegig_ref') || '';
+                              const referrerObj = allUsersList.find(u => u.uid === finalReferrerId);
+                              const isAdminReferrer = referrerObj?.email?.toLowerCase() === 'timegig2026@gmail.com';
+                              
+                              // If referrer is a 'User' sub, the Main Tenant receives the submission
+                              if (referrerObj && referrerObj.role === 'User' && !isAdminReferrer) {
+                                const adminUser = allUsersList.find(u => u.email?.toLowerCase() === 'timegig2026@gmail.com');
+                                if (adminUser) {
+                                  finalReferrerId = adminUser.uid;
+                                }
+                              }
+
+                              if (finalReferrerId) {
+                                const q = query(collection(db, 'verifications'), where('referrerId', '==', finalReferrerId));
                                 const snapshot = await getDocs(q);
-                                const referrals = snapshot.docs.map(d => d.data());
+                                const referralsList = snapshot.docs.map(d => d.data());
                                 
-                                const tenantReferrals = referrals.filter(r => r.type === 'Tenant').length;
-                                const userReferrals = referrals.filter(r => r.type === 'User').length;
+                                const tenantReferrals = referralsList.filter(r => r.type === 'Tenant').length;
+                                const userReferrals = referralsList.filter(r => r.type === 'User').length;
                                 
                                 const isTargetTenant = selectedPlan?.includes('Tenant');
-                                if (isTargetTenant && tenantReferrals >= 10) {
-                                  alert('Sorry, this referrer has reached the limit of 10 tenant referrals.');
-                                  return;
-                                }
-                                if (!isTargetTenant && userReferrals >= 100) {
-                                  alert('Sorry, this referrer has reached the limit of 100 user referrals.');
-                                  return;
+                                const isFinalReferrerAdmin = allUsersList.find(u => u.uid === finalReferrerId)?.email?.toLowerCase() === 'timegig2026@gmail.com';
+
+                                // Exempt main admin from limits
+                                if (!isFinalReferrerAdmin) {
+                                  if (isTargetTenant && tenantReferrals >= 10) {
+                                    alert('Sorry, this referrer has reached the limit of 10 tenant referrals.');
+                                    return;
+                                  }
+                                  if (!isTargetTenant && userReferrals >= 100) {
+                                    alert('Sorry, this referrer has reached the limit of 100 user referrals.');
+                                    return;
+                                  }
                                 }
                               }
 
                               const vRef = collection(db, 'verifications');
                               await addDoc(vRef, {
                                 userId: user.uid,
-                                referrerId: referrerId,
+                                referrerId: finalReferrerId,
                                 userName: profileData.name && profileData.surname ? `${profileData.name} ${profileData.surname}` : (user.displayName || 'Applicant'),
                                 type: selectedPlan?.includes('Tenant') ? 'Tenant' : 'User',
                                 selfie: selfieImage,
@@ -2718,6 +2784,13 @@ export default function App() {
                                 plan: selectedPlan,
                                 createdAt: serverTimestamp()
                               });
+
+                              // Also sync referrerId in the users collection if it was reassigned
+                              if (finalReferrerId !== (profileData.referrerId || localStorage.getItem('timegig_ref') || '')) {
+                                await updateDoc(doc(db, 'users', user.uid), {
+                                  referrerId: finalReferrerId
+                                }).catch(() => null);
+                              }
                               setVerificationStep('pending');
                             } catch (err) {
                               console.warn('Submission notice:', err);
@@ -2761,20 +2834,6 @@ export default function App() {
                 <div className="text-center mb-6 relative">
                   <h2 className="text-3xl font-black text-black tracking-tight mb-1">Tenant Dashboard</h2>
                   <p className="text-gray-500 text-sm font-medium">Passive Income & Network Management</p>
-                  
-                  {/* Inbox Icon at Top Corner for Referral / Tenant to receive promotions */}
-                  <button 
-                    onClick={() => setShowInbox(true)}
-                    className="absolute -top-2 -right-2 p-3 bg-white text-black rounded-2xl shadow-md border border-gray-100 active:scale-90 transition-all hover:bg-gray-50"
-                    title="Inbox & Promotions"
-                  >
-                    <div className="relative">
-                      <Inbox className="w-6 h-6" />
-                      {messages.some(m => !m.isRead) && (
-                        <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 border-2 border-white rounded-full animate-pulse" />
-                      )}
-                    </div>
-                  </button>
                 </div>
 
                 {/* Total Profit Balance Box (Moved Up to Top) */}
@@ -2783,14 +2842,14 @@ export default function App() {
                   const userSubProfit = (profileData as any).userSubProfit ?? ((profileData as any).userProfit || 0);
                   const totalProfitBalance = tenantSubProfit + userSubProfit;
                   return (
-                    <div className="bg-black rounded-[2rem] p-8 shadow-2xl relative overflow-hidden group border border-white/10 space-y-4">
-                      <div className="absolute top-0 right-0 p-6 opacity-20">
-                        <LayoutGrid className="w-16 h-16 text-white group-hover:rotate-12 transition-transform" />
+                    <div className="bg-black rounded-[2.5rem] p-10 shadow-2xl relative overflow-hidden group border border-white/10 space-y-6">
+                      <div className="absolute top-0 right-0 p-8 opacity-20">
+                        <LayoutGrid className="w-24 h-24 text-white group-hover:rotate-12 transition-transform" />
                       </div>
                       <div className="flex items-center justify-between relative z-10">
                         <div>
-                          <span className="text-gray-400 text-[10px] font-black uppercase tracking-wider block">Profit Balance</span>
-                          <div className="text-4xl font-black text-white tracking-tight">
+                          <span className="text-gray-400 text-xs font-black uppercase tracking-[0.2em] block mb-1">Profit Balance</span>
+                          <div className="text-5xl font-black text-white tracking-tighter">
                             R{totalProfitBalance.toFixed(2)}
                           </div>
                         </div>
@@ -2806,30 +2865,30 @@ export default function App() {
                                 });
                               }
                             }}
-                            className="bg-white/10 hover:bg-white/20 p-3 rounded-2xl text-white transition-colors"
+                            className="bg-white/10 hover:bg-white/20 p-4 rounded-3xl text-white transition-colors border border-white/10"
                             title="Reset Balance"
                           >
-                            <RefreshCw className="w-5 h-5" />
+                            <RefreshCw className="w-6 h-6" />
                           </button>
                         )}
                       </div>
 
-                      <div className="grid grid-cols-2 gap-4 relative z-10">
+                      <div className="grid grid-cols-2 gap-6 relative z-10">
                         <button 
                           onClick={() => userRole === 'Tenant' && setShowFeesModal({ type: 'Tenant', fee: profileData.tenantSubFee || 100 })}
-                          className={`rounded-2xl p-4 border transition-all text-left ${userRole === 'Tenant' ? 'bg-white/5 border-white/10 hover:bg-white/10 active:scale-95' : 'bg-white/5 border-white/5 cursor-default'}`}
+                          className={`rounded-[2rem] p-6 border transition-all text-left ${userRole === 'Tenant' ? 'bg-white/5 border-white/10 hover:bg-white/10 active:scale-95' : 'bg-white/5 border-white/5 cursor-default'}`}
                         >
-                          <span className="text-gray-500 text-[9px] font-black uppercase tracking-wider block mb-1">Tenant Sub Profit</span>
-                          <div className="text-lg font-black text-emerald-400">R{tenantSubProfit.toFixed(2)}</div>
-                          {userRole === 'Tenant' && <span className="text-[8px] text-gray-500 font-bold uppercase">Tap to set fee</span>}
+                          <span className="text-gray-500 text-[10px] font-black uppercase tracking-wider block mb-1">Tenant Sub Profit</span>
+                          <div className="text-2xl font-black text-emerald-400">R{tenantSubProfit.toFixed(2)}</div>
+                          {userRole === 'Tenant' && <span className="text-[9px] text-gray-500 font-bold uppercase mt-1 block">Tap to set fee</span>}
                         </button>
                         <button 
                           onClick={() => userRole === 'Tenant' && setShowFeesModal({ type: 'User', fee: profileData.userSubFee || 25 })}
-                          className={`rounded-2xl p-4 border transition-all text-left ${userRole === 'Tenant' ? 'bg-white/5 border-white/10 hover:bg-white/10 active:scale-95' : 'bg-white/5 border-white/5 cursor-default'}`}
+                          className={`rounded-[2rem] p-6 border transition-all text-left ${userRole === 'Tenant' ? 'bg-white/5 border-white/10 hover:bg-white/10 active:scale-95' : 'bg-white/5 border-white/5 cursor-default'}`}
                         >
-                          <span className="text-gray-500 text-[9px] font-black uppercase tracking-wider block mb-1">User Sub Profit</span>
-                          <div className="text-lg font-black text-blue-400">R{userSubProfit.toFixed(2)}</div>
-                          {userRole === 'Tenant' && <span className="text-[8px] text-gray-500 font-bold uppercase">Tap to set fee</span>}
+                          <span className="text-gray-500 text-[10px] font-black uppercase tracking-wider block mb-1">User Sub Profit</span>
+                          <div className="text-2xl font-black text-blue-400">R{userSubProfit.toFixed(2)}</div>
+                          {userRole === 'Tenant' && <span className="text-[9px] text-gray-500 font-bold uppercase mt-1 block">Tap to set fee</span>}
                         </button>
                       </div>
                     </div>
@@ -3536,31 +3595,21 @@ export default function App() {
               </div>
               <div className="relative z-10 flex flex-col items-center">
                 {/* Top Corner Action Controls */}
-                <div className="absolute -top-4 left-4 right-4 flex items-center justify-between z-20">
+                <div className="absolute -top-4 left-4 right-4 flex items-center justify-end gap-2 z-20">
                   <button 
-                    onClick={() => setActiveTab('map')}
-                    className="p-3 bg-white/10 hover:bg-white/20 rounded-2xl text-white transition-all active:scale-95 flex items-center gap-1.5 backdrop-blur-sm border border-white/10 shadow-lg"
-                    title="Back"
-                  >
-                    <ChevronLeft className="w-4 h-4 text-white" />
-                  </button>
-
-                  <button 
-                    onClick={() => setShowSettingsModal(true)}
-                    className="p-3 bg-white/10 hover:bg-white/20 rounded-2xl text-white transition-all active:scale-95 flex items-center gap-1.5 backdrop-blur-sm border border-white/10 shadow-lg"
+                    onClick={() => { playSmoothClickSound(); setShowSettingsModal(true); }}
+                    className="p-3 bg-white/10 hover:bg-white/20 rounded-2xl text-white transition-all active:scale-95 flex items-center backdrop-blur-sm border border-white/10 shadow-lg"
                     title="Settings"
                   >
-                    <Settings className="w-4 h-4 text-white" />
-                    <span className="text-[10px] font-black uppercase tracking-widest">Settings</span>
+                    <Settings className="w-5 h-5 text-white" />
                   </button>
 
                   <button 
-                    onClick={handleLogout}
-                    className="p-3 bg-white/10 hover:bg-white/20 rounded-2xl text-white transition-all active:scale-95 flex items-center gap-1.5 backdrop-blur-sm border border-white/10 shadow-lg"
+                    onClick={() => { playSmoothClickSound(); handleLogout(); }}
+                    className="p-3 bg-white/10 hover:bg-white/20 rounded-2xl text-white transition-all active:scale-95 flex items-center backdrop-blur-sm border border-white/10 shadow-lg"
                     title="Log Out"
                   >
-                    <LogOut className="w-4 h-4 text-white" />
-                    <span className="text-[10px] font-black uppercase tracking-widest">Logout</span>
+                    <LogOut className="w-5 h-5 text-white" />
                   </button>
                 </div>
                 <div className="absolute -top-20 left-1/2 -translate-x-1/2 group">
@@ -3902,70 +3951,73 @@ export default function App() {
 
         {/* Seekers Directory View (Bottom Menu Feature) */}
         <div className={`absolute inset-0 bg-gray-50/80 backdrop-blur-xl z-35 transition-transform duration-300 flex flex-col overflow-hidden ${activeTab === 'seekers' ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0 pointer-events-none'}`}>
-          <div className="flex-1 flex flex-col p-6 pt-12 overflow-y-auto no-scrollbar">
-            <div className="max-w-md mx-auto w-full space-y-5 pb-24">
-              
+          {/* Fixed Header & Search Section (Compact) */}
+          <div className="bg-white/80 backdrop-blur-xl p-4 pt-10 border-b border-gray-100 shadow-sm space-y-3 z-20 shrink-0">
+            <div className="max-w-md mx-auto w-full space-y-3">
               {/* Header */}
-              <div className="text-center relative">
-                <h2 className="text-3xl font-black text-black tracking-tight mb-1">Gig Seekers</h2>
-                <p className="text-gray-500 text-xs font-medium">Connect & Hire Verified Local Trade Professionals</p>
-              </div>
-
-              {/* Logged in User Availability Toggle */}
-              <div className="bg-black text-white p-4 rounded-2xl shadow-md border border-white/10 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2.5">
-                  <div className={`w-3 h-3 rounded-full ${currentUserAvailability ? 'bg-emerald-400 animate-ping' : 'bg-gray-400'}`} />
-                  <div>
-                    <span className="text-[9px] font-black text-gray-400 uppercase tracking-wider block">Your Gig Seeking Status</span>
-                    <span className="text-xs font-black text-white">
-                      {currentUserAvailability ? 'Available for Gigs' : 'Currently Busy'}
-                    </span>
-                  </div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-black text-black tracking-tight">Gig Seekers</h2>
+                  <p className="text-gray-500 text-[10px] font-medium uppercase tracking-wider">Local Pros</p>
                 </div>
-                <button
-                  onClick={handleToggleMyAvailability}
-                  className={`px-3.5 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all active:scale-95 ${currentUserAvailability ? 'bg-emerald-500 text-white' : 'bg-gray-800 text-gray-300'}`}
-                >
-                  {currentUserAvailability ? 'Set to Busy' : 'Set to Available'}
-                </button>
+                {/* Compact Availability Indicator */}
+                <div className="flex items-center gap-2 bg-black text-white px-3 py-1.5 rounded-xl shadow-sm border border-white/10">
+                  <div className={`w-2 h-2 rounded-full ${currentUserAvailability ? 'bg-emerald-400 animate-ping' : 'bg-gray-400'}`} />
+                  <span className="text-[9px] font-black uppercase tracking-tight">
+                    {currentUserAvailability ? 'Available' : 'Busy'}
+                  </span>
+                  <button
+                    onClick={handleToggleMyAvailability}
+                    className="ml-1 p-1 bg-white/10 hover:bg-white/20 rounded-lg transition-all active:scale-90"
+                    title="Toggle Availability"
+                  >
+                    <RefreshCw className="w-3 h-3 text-white" />
+                  </button>
+                </div>
               </div>
 
-              {/* Search Bar & Category Filters */}
-              <div className="space-y-3">
-                <div className="flex items-center gap-2 bg-white p-3 rounded-2xl border border-gray-100 shadow-sm">
-                  <Search className="w-4 h-4 text-gray-400 shrink-0" />
+              {/* Search Bar & Category Filters (Compact) */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 bg-white p-2.5 rounded-xl border border-gray-200 shadow-sm focus-within:ring-2 focus-within:ring-black/5 transition-all">
+                  <Search className="w-3.5 h-3.5 text-gray-400 shrink-0" />
                   <input
                     type="text"
-                    placeholder="Search seeker by name, trade, skills or location..."
+                    placeholder="Search name, trade, location..."
                     value={seekerSearchQuery}
                     onChange={(e) => setSeekerSearchQuery(e.target.value)}
-                    className="w-full bg-transparent text-xs font-bold text-black outline-none"
+                    className="w-full bg-transparent text-[11px] font-bold text-black outline-none"
                   />
                   {seekerSearchQuery && (
                     <button onClick={() => setSeekerSearchQuery('')} className="p-1 text-gray-400 hover:text-black">
-                      <X className="w-3.5 h-3.5" />
+                      <X className="w-3 h-3" />
                     </button>
                   )}
                 </div>
 
-                <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1 text-[10px] font-black uppercase tracking-wider">
+                <div className="flex items-center gap-1 overflow-x-auto no-scrollbar pb-0.5 text-[9px] font-black uppercase tracking-wider">
                   <button
                     onClick={() => setSeekerTradeFilter('All')}
-                    className={`px-3 py-1.5 rounded-xl transition-all whitespace-nowrap ${seekerTradeFilter === 'All' ? 'bg-black text-white shadow-md' : 'bg-white text-gray-600 border border-gray-100 hover:bg-gray-50'}`}
+                    className={`px-2.5 py-1 rounded-lg transition-all whitespace-nowrap ${seekerTradeFilter === 'All' ? 'bg-black text-white shadow-md' : 'bg-white text-gray-600 border border-gray-100 hover:bg-gray-50'}`}
                   >
-                    All Trades ({allUsersList.filter(u => !user || u.uid !== user.uid).length})
+                    All ({allUsersList.filter(u => !user || u.uid !== user.uid).length})
                   </button>
                   {WORK_TRADES.slice(0, 10).map((t) => (
                     <button
                       key={t}
                       onClick={() => setSeekerTradeFilter(t)}
-                      className={`px-3 py-1.5 rounded-xl transition-all whitespace-nowrap ${seekerTradeFilter === t ? 'bg-black text-white shadow-md' : 'bg-white text-gray-600 border border-gray-100 hover:bg-gray-50'}`}
+                      className={`px-2.5 py-1 rounded-lg transition-all whitespace-nowrap ${seekerTradeFilter === t ? 'bg-black text-white shadow-md' : 'bg-white text-gray-600 border border-gray-100 hover:bg-gray-50'}`}
                     >
                       {t}
                     </button>
                   ))}
                 </div>
               </div>
+            </div>
+          </div>
+
+          {/* Scrollable Content Area */}
+          <div className="flex-1 overflow-y-auto no-scrollbar p-4">
+            <div className="max-w-md mx-auto w-full space-y-3 pb-24">
 
               {/* Empty state & Seed Button */}
               {filteredSeekers.length === 0 && (
@@ -4247,11 +4299,11 @@ export default function App() {
             {/* 1. Tenant Dashboard (For Tenants / Main Admin) */}
             {(userRole === 'Tenant' || isMainTenant) && (
               <button 
-                onClick={() => { setVerificationStep(null); setActiveTab(activeTab === 'tenant' ? 'map' : 'tenant'); setShowReferralList(false); setReferralView(null); }} 
+                onClick={() => { playSmoothClickSound(); setVerificationStep(null); setActiveTab(activeTab === 'tenant' ? 'map' : 'tenant'); setShowReferralList(false); setReferralView(null); }} 
                 className={`flex flex-col items-center gap-0.5 transition-all active:scale-90 relative ${activeTab === 'tenant' ? 'text-black font-black' : 'text-gray-500 hover:text-black'}`}
               >
                 <LayoutGrid className="w-5 h-5 stroke-[2]" />
-                <span className="text-[9px] font-bold uppercase tracking-[0.1em]">Tenant</span>
+                {(activeTab !== 'tenant' || userRole === 'User') && <span className="text-[9px] font-bold uppercase tracking-[0.1em]">Tenant</span>}
                 {isMainTenant && delinquentTenants.length > 0 && (
                   <span className="absolute -top-1.5 -right-2 bg-red-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full animate-pulse shadow-sm">
                     {delinquentTenants.length}
@@ -4262,12 +4314,12 @@ export default function App() {
 
             {/* 2. Total Refs Feature */}
             <button 
-              onClick={() => { setVerificationStep(null); setActiveTab(activeTab === 'referrals' ? 'map' : 'referrals'); setShowReferralList(true); setReferralView(null); }} 
+              onClick={() => { playSmoothClickSound(); setVerificationStep(null); setActiveTab(activeTab === 'referrals' ? 'map' : 'referrals'); setShowReferralList(true); setReferralView(null); }} 
               className={`flex flex-col items-center gap-0.5 transition-all active:scale-90 relative ${activeTab === 'referrals' ? 'text-black font-black' : 'text-gray-500 hover:text-black'}`}
               title="Total Refs"
             >
               <Gift className="w-5 h-5 stroke-[2]" />
-              <span className="text-[9px] font-bold uppercase tracking-[0.1em]">Refs</span>
+              {(activeTab !== 'referrals' || userRole === 'User') && <span className="text-[9px] font-bold uppercase tracking-[0.1em]">Refs</span>}
               {(() => {
                 const pendingCount = referrals.filter(r => r.status === 'pending').length;
                 if (pendingCount > 0) {
@@ -4284,37 +4336,41 @@ export default function App() {
             {/* 3. GiGs Map Icon (Centered & Bigger) */}
             {showGigsIconForUser && (
               <button 
-                onClick={() => { setActiveTab(activeTab === 'map' ? 'map' : 'map'); setVerificationStep(null); }} 
+                onClick={() => { playSmoothClickSound(); setActiveTab(activeTab === 'map' ? 'map' : 'map'); setVerificationStep(null); }} 
                 className={`flex flex-col items-center gap-0.5 transition-all active:scale-90 relative -top-3 ${activeTab === 'map' ? 'text-black font-black' : 'text-gray-500 hover:text-black'}`}
                 title="GiGs Map"
               >
                 <div className="bg-black p-3 rounded-full shadow-lg border-4 border-white">
                   <LocateFixed className="w-8 h-8 text-white stroke-[2]" />
                 </div>
-                <span className="text-[9px] font-black uppercase tracking-[0.1em] mt-1">GiGs</span>
+                {(activeTab !== 'map' || userRole === 'User') && <span className="text-[9px] font-black uppercase tracking-[0.1em] mt-1">GiGs</span>}
               </button>
             )}
 
             {/* 4. Seekers Feature */}
             <button 
-              onClick={() => { setVerificationStep(null); setActiveTab(activeTab === 'seekers' ? 'map' : 'seekers'); }} 
+              onClick={() => { playSmoothClickSound(); setVerificationStep(null); setActiveTab(activeTab === 'seekers' ? 'map' : 'seekers'); }} 
               className={`flex flex-col items-center gap-0.5 transition-all active:scale-90 ${activeTab === 'seekers' ? 'text-black font-black' : 'text-gray-500 hover:text-black'}`}
               title="Seekers Directory"
             >
               <Users className="w-5 h-5 stroke-[2]" />
-              <span className="text-[9px] font-bold uppercase tracking-[0.1em]">Seekers</span>
+              {(activeTab !== 'seekers' || userRole === 'User') && <span className="text-[9px] font-bold uppercase tracking-[0.1em]">Seekers</span>}
             </button>
 
-            {/* 5. Shop Tab */}
-            <button 
-              onClick={() => { setVerificationStep(null); setActiveTab(activeTab === 'shop' ? 'map' : 'shop'); }} 
-              className={`flex flex-col items-center gap-0.5 transition-all active:scale-90 relative ${activeTab === 'shop' ? 'text-black font-black' : 'text-gray-500 hover:text-black'}`}
-              title="Shop"
-            >
-              <ShoppingBag className="w-5 h-5 stroke-[2]" />
-              <span className="text-[9px] font-bold uppercase tracking-[0.1em]">Shop</span>
-              <span className="absolute -top-1 -right-2 bg-amber-500 text-white text-[7px] font-black px-1 rounded-full uppercase tracking-wider scale-90">Work</span>
-            </button>
+            {/* 5. Shop Tab (For Tenants / Main Admin) */}
+            {(userRole === 'Tenant' || isMainTenant) && (
+              <button 
+                onClick={() => { playSmoothClickSound(); setVerificationStep(null); setActiveTab(activeTab === 'shop' ? 'map' : 'shop'); }} 
+                className={`flex flex-col items-center gap-0.5 transition-all active:scale-90 relative ${activeTab === 'shop' ? 'text-black font-black' : 'text-gray-500 hover:text-black'}`}
+                title="Shop"
+              >
+                <ShoppingBag className="w-5 h-5 stroke-[2]" />
+                {(activeTab !== 'shop' || userRole === 'User') && <span className="text-[9px] font-bold uppercase tracking-[0.1em]">Shop</span>}
+                <span className="absolute -top-1 -right-2 bg-amber-500 text-white text-[6px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-tighter">CONSTRUCTION</span>
+              </button>
+            )}
+
+
           </>
         )}
       </div>
@@ -5366,23 +5422,29 @@ export default function App() {
                     </div>
                   </div>
                   <button 
-                    onClick={() => setSoundEnabled(!soundEnabled)}
+                    onClick={() => { playSmoothClickSound(); setSoundEnabled(!soundEnabled); }}
                     className={`w-12 h-6 rounded-full transition-colors relative p-0.5 ${soundEnabled ? 'bg-black' : 'bg-gray-300'}`}
                   >
                     <div className={`w-5 h-5 rounded-full bg-white transition-transform ${soundEnabled ? 'translate-x-6' : 'translate-x-0'}`} />
                   </button>
                 </div>
 
-                <div className="pt-2 border-t border-gray-200/60 flex gap-2">
+                <div className="pt-2 border-t border-gray-200/60 flex flex-wrap gap-2">
+                  <button 
+                    onClick={playSmoothClickSound}
+                    className="flex-1 min-w-[100px] py-2 px-2.5 bg-white hover:bg-gray-100 text-black border border-gray-200 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all active:scale-95 flex items-center justify-center gap-1 shadow-sm"
+                  >
+                    <Target className="w-3.5 h-3.5 text-black" /> Test Click
+                  </button>
                   <button 
                     onClick={playSmoothReceiveSound}
-                    className="flex-1 py-2 px-2.5 bg-white hover:bg-gray-100 text-black border border-gray-200 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all active:scale-95 flex items-center justify-center gap-1 shadow-sm"
+                    className="flex-1 min-w-[100px] py-2 px-2.5 bg-white hover:bg-gray-100 text-black border border-gray-200 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all active:scale-95 flex items-center justify-center gap-1 shadow-sm"
                   >
                     <Bell className="w-3.5 h-3.5 text-blue-600" /> Test Receive
                   </button>
                   <button 
                     onClick={playSmoothAlarmSound}
-                    className="flex-1 py-2 px-2.5 bg-white hover:bg-gray-100 text-black border border-gray-200 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all active:scale-95 flex items-center justify-center gap-1 shadow-sm"
+                    className="flex-1 min-w-[100px] py-2 px-2.5 bg-white hover:bg-gray-100 text-black border border-gray-200 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all active:scale-95 flex items-center justify-center gap-1 shadow-sm"
                   >
                     <Zap className="w-3.5 h-3.5 text-amber-600" /> Test Alarm
                   </button>
@@ -5412,7 +5474,7 @@ export default function App() {
             </div>
 
             <button 
-              onClick={() => setShowSettingsModal(false)}
+              onClick={() => { playSmoothClickSound(); setShowSettingsModal(false); }}
               className="w-full py-4 bg-black text-white font-black rounded-2xl active:scale-95 transition-all text-xs uppercase tracking-widest shadow-lg shadow-black/20"
             >
               Done
