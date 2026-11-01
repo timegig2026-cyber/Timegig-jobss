@@ -1258,34 +1258,16 @@ export default function App() {
     };
   }, []);
 
-  // Strict Tab Navigation Handler enforcing registration and step-by-step account activation
+  // Tab Navigation Handler making every feature visible and accessible
   const navigateTab = useCallback((targetTab: 'map' | 'activation' | 'tenant' | 'referrals' | 'seekers' | 'profile' | 'shop' | 'auth') => {
     playSmoothClickSound();
-    if (!user) {
-      setActiveTab('auth');
-      return;
-    }
-    if (!isApproved && !isMainTenant && targetTab !== 'activation' && targetTab !== 'profile' && targetTab !== 'auth') {
-      alert('🔒 Account Activation Required\n\nPlease follow the step-by-step account activation process (Selfie, ID Upload, and Payment/Trial Claim) to unlock app features.');
-      setActiveTab('activation');
-      return;
-    }
     setVerificationStep(null);
     setActiveTab(targetTab);
-  }, [user, isApproved, isMainTenant, playSmoothClickSound]);
+  }, [playSmoothClickSound]);
 
-  // Strict App Locking Effect: Unregistered users are locked out of all features.
-  // Unapproved users are forced to follow the step-by-step account activation process.
+  // Allow all features to be visible and browsable freely
   useEffect(() => {
-    if (!user) {
-      if (activeTab !== 'auth') {
-        setActiveTab('auth');
-      }
-    } else if (!isApproved && !isMainTenant) {
-      if (activeTab !== 'activation' && activeTab !== 'profile' && activeTab !== 'auth') {
-        setActiveTab('activation');
-      }
-    }
+    // Every feature on the app is visible to users
   }, [user, isApproved, isMainTenant, activeTab]);
 
   // Listen for referrals if Tenant
@@ -5047,24 +5029,23 @@ export default function App() {
         </div>
       </div>
 
-      {/* Bottom Menu Bar - Hidden for unregistered users, in auth screen, and during activation */}
-      {Boolean(user && (isApproved || isMainTenant) && activeTab !== 'auth' && activeTab !== 'activation') && (
+      {/* Bottom Menu Bar - Visible to users across app features */}
+      {activeTab !== 'auth' && (
         <div className="fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-gray-100 flex items-center justify-around px-4 z-[9999] pb-[env(safe-area-inset-bottom)] shadow-lg shrink-0">
-          {/* 1. Tenant Dashboard (For Tenants / Main Admin) */}
-          {(userRole === 'Tenant' || isMainTenant) && (
-            <button 
-              onClick={() => { navigateTab('tenant'); setShowReferralList(false); setReferralView(null); }} 
-              className={`flex flex-col items-center gap-0.5 transition-all active:scale-90 relative ${activeTab === 'tenant' ? 'text-black font-black' : 'text-gray-500 hover:text-black'}`}
-            >
-              <LayoutGrid className="w-5 h-5 stroke-[2]" />
-              {(activeTab !== 'tenant' || userRole === 'User') && <span className="text-[9px] font-bold uppercase tracking-[0.1em]">Tenant</span>}
-              {isMainTenant && delinquentTenants.length > 0 && (
-                <span className="absolute -top-1.5 -right-2 bg-red-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full animate-pulse shadow-sm">
-                  {delinquentTenants.length}
-                </span>
-              )}
-            </button>
-          )}
+          {/* 1. Tenant Dashboard */}
+          <button 
+            onClick={() => { navigateTab('tenant'); setShowReferralList(false); setReferralView(null); }} 
+            className={`flex flex-col items-center gap-0.5 transition-all active:scale-90 relative ${activeTab === 'tenant' ? 'text-black font-black' : 'text-gray-500 hover:text-black'}`}
+            title="Tenant Dashboard"
+          >
+            <LayoutGrid className="w-5 h-5 stroke-[2]" />
+            <span className="text-[9px] font-bold uppercase tracking-[0.1em]">Tenant</span>
+            {isMainTenant && delinquentTenants.length > 0 && (
+              <span className="absolute -top-1.5 -right-2 bg-red-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full animate-pulse shadow-sm">
+                {delinquentTenants.length}
+              </span>
+            )}
+          </button>
 
           {/* 2. Total Refs Feature */}
           <button 
@@ -5073,7 +5054,7 @@ export default function App() {
             title="Total Refs"
           >
             <Users className="w-5 h-5 stroke-[2]" />
-            {(activeTab !== 'referrals' || userRole === 'User') && <span className="text-[9px] font-bold uppercase tracking-[0.1em]">Refs</span>}
+            <span className="text-[9px] font-bold uppercase tracking-[0.1em]">Refs</span>
             {(() => {
               const pendingCount = referrals.filter(r => r.status === 'pending').length;
               if (pendingCount > 0) {
@@ -5088,18 +5069,16 @@ export default function App() {
           </button>
 
           {/* 3. GiGs Map Icon (Centered & Bigger) */}
-          {showGigsIconForUser && (
-            <button 
-              onClick={() => navigateTab('map')} 
-              className={`flex flex-col items-center gap-0.5 transition-all active:scale-90 relative -top-3 ${activeTab === 'map' ? 'text-black font-black' : 'text-gray-500 hover:text-black'}`}
-              title="GiGs Map"
-            >
-              <div className="bg-black p-3 rounded-full shadow-lg border-4 border-white">
-                <LocateFixed className="w-8 h-8 text-white stroke-[2]" />
-              </div>
-              {(activeTab !== 'map' || userRole === 'User') && <span className="text-[9px] font-black uppercase tracking-[0.1em] mt-1">GiGs</span>}
-            </button>
-          )}
+          <button 
+            onClick={() => navigateTab('map')} 
+            className={`flex flex-col items-center gap-0.5 transition-all active:scale-90 relative -top-3 ${activeTab === 'map' ? 'text-black font-black' : 'text-gray-500 hover:text-black'}`}
+            title="GiGs Map"
+          >
+            <div className="bg-black p-3 rounded-full shadow-lg border-4 border-white">
+              <LocateFixed className="w-8 h-8 text-white stroke-[2]" />
+            </div>
+            <span className="text-[9px] font-black uppercase tracking-[0.1em] mt-1">GiGs</span>
+          </button>
 
           {/* 4. Seekers Feature */}
           <button 
@@ -5108,21 +5087,19 @@ export default function App() {
             title="Seekers Directory"
           >
             <Users className="w-5 h-5 stroke-[2]" />
-            {(activeTab !== 'seekers' || userRole === 'User') && <span className="text-[9px] font-bold uppercase tracking-[0.1em]">Seekers</span>}
+            <span className="text-[9px] font-bold uppercase tracking-[0.1em]">Seekers</span>
           </button>
 
-          {/* 5. Shop Tab (For Tenants / Main Admin) */}
-          {(userRole === 'Tenant' || isMainTenant) && (
-            <button 
-              onClick={() => navigateTab('shop')} 
-              className={`flex flex-col items-center gap-0.5 transition-all active:scale-90 relative ${activeTab === 'shop' ? 'text-black font-black' : 'text-gray-500 hover:text-black'}`}
-              title="Shop"
-            >
-              <ShoppingBag className="w-5 h-5 stroke-[2]" />
-              {(activeTab !== 'shop' || userRole === 'User') && <span className="text-[9px] font-bold uppercase tracking-[0.1em]">Shop</span>}
-              <span className="absolute -top-1 -right-2 bg-amber-500 text-white text-[6px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-tighter">CONSTRUCTION</span>
-            </button>
-          )}
+          {/* 5. Shop Tab */}
+          <button 
+            onClick={() => navigateTab('shop')} 
+            className={`flex flex-col items-center gap-0.5 transition-all active:scale-90 relative ${activeTab === 'shop' ? 'text-black font-black' : 'text-gray-500 hover:text-black'}`}
+            title="Shop"
+          >
+            <ShoppingBag className="w-5 h-5 stroke-[2]" />
+            <span className="text-[9px] font-bold uppercase tracking-[0.1em]">Shop</span>
+            <span className="absolute -top-1 -right-2 bg-amber-500 text-white text-[6px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-tighter">SOON</span>
+          </button>
         </div>
       )}
 
