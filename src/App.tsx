@@ -460,18 +460,21 @@ enum OperationType {
 function TenantFeeManager({ 
   currentTenantFee, 
   currentUserFee, 
+  currentTrialDays,
   userUid, 
   playSmoothReceiveSound, 
   handleFirestoreError 
 }: { 
   currentTenantFee: number; 
   currentUserFee: number; 
+  currentTrialDays: number;
   userUid: string; 
   playSmoothReceiveSound: () => void; 
   handleFirestoreError: (error: any, operationType: any, path: string | null) => void; 
 }) {
   const [tenantFeeVal, setTenantFeeVal] = useState<string>(String(currentTenantFee ?? 100));
   const [userFeeVal, setUserFeeVal] = useState<string>(String(currentUserFee ?? 25));
+  const [trialDaysVal, setTrialDaysVal] = useState<string>(String(currentTrialDays ?? 30));
   const [isSaving, setIsSaving] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
@@ -487,9 +490,16 @@ function TenantFeeManager({
     }
   }, [currentUserFee]);
 
+  useEffect(() => {
+    if (currentTrialDays !== undefined && currentTrialDays !== null) {
+      setTrialDaysVal(String(currentTrialDays));
+    }
+  }, [currentTrialDays]);
+
   const handleSave = async () => {
     const tNum = Number(tenantFeeVal);
     const uNum = Number(userFeeVal);
+    const dNum = Number(trialDaysVal);
 
     if (isNaN(tNum) || tNum < 10) {
       alert("Please enter a valid Tenant Sub fee (minimum R10).");
@@ -499,19 +509,24 @@ function TenantFeeManager({
       alert("Please enter a valid User Sub fee (minimum R1).");
       return;
     }
+    if (isNaN(dNum) || dNum < 0 || dNum > 365) {
+      alert("Please enter valid trial days (between 0 and 365 days).");
+      return;
+    }
 
     setIsSaving(true);
     try {
       await updateDoc(doc(db, 'users', userUid), {
         tenantSubFee: tNum,
         userSubFee: uNum,
+        trialDays: dNum,
         updatedAt: serverTimestamp()
       });
       playSmoothReceiveSound();
-      setToast(`Monthly subscription fees updated! (Tenant Sub: R${tNum}, User Sub: R${uNum})`);
+      setToast(`Monthly subscription settings updated! (Tenant Sub: R${tNum}, User Sub: R${uNum}, Trial: ${dNum} Days)`);
       setTimeout(() => setToast(null), 4000);
     } catch (err) {
-      console.warn("Failed to update tenant subscription fees:", err);
+      console.warn("Failed to update tenant subscription settings:", err);
       handleFirestoreError(err, OperationType.UPDATE, `users/${userUid}`);
     } finally {
       setIsSaving(false);
@@ -520,24 +535,27 @@ function TenantFeeManager({
 
   return (
     <div className="bg-white/95 backdrop-blur-xl rounded-[1.5rem] p-4 shadow-xl border border-gray-200 text-left space-y-3 relative overflow-hidden transition-all">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-xl bg-black text-emerald-400 flex items-center justify-center shrink-0 font-black shadow-md">
             <DollarSign className="w-4 h-4" />
           </div>
           <div>
             <h4 className="font-black text-xs uppercase tracking-wider text-black">
-              Monthly Subscription Fees
+              Monthly Subscription & Trial Settings
             </h4>
-            <p className="text-[10px] text-gray-500 font-medium">Set rates for Tenant Sub and User Sub referrals</p>
+            <p className="text-[10px] text-gray-500 font-medium">Configure monthly fees and trial period days for referrals</p>
           </div>
         </div>
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 flex-wrap">
           <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-300">
             Tenant: R{currentTenantFee || 100}/mo
           </span>
           <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-blue-100 text-blue-900 border border-blue-300">
             User: R{currentUserFee || 25}/mo
+          </span>
+          <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300">
+            Trial: {currentTrialDays || 30} Days
           </span>
         </div>
       </div>
@@ -549,14 +567,14 @@ function TenantFeeManager({
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-3 pt-1">
+      <div className="grid grid-cols-3 gap-2 pt-1">
         {/* Tenant Sub Fee Input */}
-        <div className="bg-gray-50 p-2.5 rounded-xl border border-gray-200 space-y-1">
-          <label className="text-[9px] font-black text-black uppercase tracking-wider block">
+        <div className="bg-gray-50 p-2 rounded-xl border border-gray-200 space-y-1">
+          <label className="text-[8px] font-black text-black uppercase tracking-wider block truncate">
             Tenant Sub Fee
           </label>
           <div className="relative">
-            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-black text-black">R</span>
+            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs font-black text-black">R</span>
             <input
               type="number"
               min="10"
@@ -564,18 +582,18 @@ function TenantFeeManager({
               value={tenantFeeVal}
               onChange={(e) => setTenantFeeVal(e.target.value)}
               placeholder="100"
-              className="w-full bg-white pl-6 pr-2 py-2 rounded-lg text-xs font-black text-black border border-gray-300 focus:border-black focus:bg-white outline-none transition-all shadow-inner"
+              className="w-full bg-white pl-5 pr-1 py-1.5 rounded-lg text-xs font-black text-black border border-gray-300 focus:border-black focus:bg-white outline-none transition-all shadow-inner"
             />
           </div>
         </div>
 
         {/* User Sub Fee Input */}
-        <div className="bg-gray-50 p-2.5 rounded-xl border border-gray-200 space-y-1">
-          <label className="text-[9px] font-black text-black uppercase tracking-wider block">
+        <div className="bg-gray-50 p-2 rounded-xl border border-gray-200 space-y-1">
+          <label className="text-[8px] font-black text-black uppercase tracking-wider block truncate">
             User Sub Fee
           </label>
           <div className="relative">
-            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-black text-black">R</span>
+            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs font-black text-black">R</span>
             <input
               type="number"
               min="1"
@@ -583,7 +601,25 @@ function TenantFeeManager({
               value={userFeeVal}
               onChange={(e) => setUserFeeVal(e.target.value)}
               placeholder="25"
-              className="w-full bg-white pl-6 pr-2 py-2 rounded-lg text-xs font-black text-black border border-gray-300 focus:border-black focus:bg-white outline-none transition-all shadow-inner"
+              className="w-full bg-white pl-5 pr-1 py-1.5 rounded-lg text-xs font-black text-black border border-gray-300 focus:border-black focus:bg-white outline-none transition-all shadow-inner"
+            />
+          </div>
+        </div>
+
+        {/* Trial Days Input */}
+        <div className="bg-gray-50 p-2 rounded-xl border border-gray-200 space-y-1">
+          <label className="text-[8px] font-black text-black uppercase tracking-wider block truncate">
+            Trial (Days)
+          </label>
+          <div className="relative">
+            <input
+              type="number"
+              min="0"
+              max="365"
+              value={trialDaysVal}
+              onChange={(e) => setTrialDaysVal(e.target.value)}
+              placeholder="30"
+              className="w-full bg-white px-2 py-1.5 rounded-lg text-xs font-black text-black border border-gray-300 focus:border-black focus:bg-white outline-none transition-all shadow-inner text-center"
             />
           </div>
         </div>
@@ -599,7 +635,7 @@ function TenantFeeManager({
         ) : (
           <Check className="w-3.5 h-3.5 text-emerald-400" />
         )}
-        <span>{isSaving ? 'Saving Fees...' : 'Save Subscription Fees'}</span>
+        <span>{isSaving ? 'Saving Settings...' : 'Save Subscription & Trial Settings'}</span>
       </button>
     </div>
   );
@@ -931,6 +967,7 @@ export default function App() {
     hasShownActivation: false,
     tenantSubFee: 100,
     userSubFee: 25,
+    trialDays: 30,
     bankTransferDetails: '',
     isAvailableForWork: true
   });
@@ -1032,6 +1069,17 @@ export default function App() {
           if (!userDoc.exists()) {
             // New user registered via link
             const isMainAdmin = firebaseUser.email === 'timegig2026@gmail.com';
+            let grantedTrialDays = 30;
+            if (storedRef) {
+              try {
+                const refDocSnap = await getDoc(doc(db, 'users', storedRef));
+                if (refDocSnap.exists() && refDocSnap.data()?.trialDays !== undefined) {
+                  grantedTrialDays = Number(refDocSnap.data().trialDays) ?? 30;
+                }
+              } catch (e) {
+                console.warn("Could not read referrer trialDays:", e);
+              }
+            }
             const initialData = {
               uid: firebaseUser.uid,
               email: firebaseUser.email,
@@ -1044,7 +1092,8 @@ export default function App() {
               userProfit: 0,
               tenantSubProfit: 0,
               userSubProfit: 0,
-              subscriptionExpiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+              trialDays: 30,
+              subscriptionExpiresAt: new Date(Date.now() + grantedTrialDays * 24 * 60 * 60 * 1000)
             };
             await setDoc(userDocRef, initialData).catch(() => null);
             if (storedRef && !sessionStorage.getItem('welcome_dismissed')) {
@@ -1116,6 +1165,7 @@ export default function App() {
             hasShownActivation: data.hasShownActivation || false,
             tenantSubFee: data.tenantSubFee ?? 100,
             userSubFee: data.userSubFee ?? 25,
+            trialDays: data.trialDays ?? 30,
             bankTransferDetails: data.bankTransferDetails || '',
             isAvailableForWork: data.isAvailableForWork !== false
           });
@@ -1156,6 +1206,7 @@ export default function App() {
           hasShownActivation: false,
           tenantSubFee: 100,
           userSubFee: 25,
+          trialDays: 30,
           bankTransferDetails: '',
           isAvailableForWork: true
         });
@@ -3473,6 +3524,7 @@ export default function App() {
                   <TenantFeeManager
                     currentTenantFee={profileData.tenantSubFee}
                     currentUserFee={profileData.userSubFee}
+                    currentTrialDays={profileData.trialDays}
                     userUid={user.uid}
                     playSmoothReceiveSound={playSmoothReceiveSound}
                     handleFirestoreError={handleFirestoreError}
