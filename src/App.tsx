@@ -4957,7 +4957,7 @@ export default function App() {
         )}
 
       {/* Auth View & Feature Lock Screen for Unregistered Users */}
-      <div className={`absolute inset-0 bg-gray-50 z-[50] transition-transform duration-300 flex flex-col items-center justify-center p-4 overflow-y-auto no-scrollbar ${activeTab === 'auth' ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0 pointer-events-none'}`}>
+      <div className={`absolute inset-0 bg-black/45 backdrop-blur-xl z-[50] transition-transform duration-300 flex flex-col items-center justify-center p-4 overflow-y-auto no-scrollbar ${activeTab === 'auth' ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0 pointer-events-none'}`}>
         <div className="w-full max-w-sm bg-white rounded-3xl p-5 shadow-2xl border border-gray-100 flex flex-col items-center text-center space-y-3.5 my-auto">
           
           {/* Lock Header Badge */}
