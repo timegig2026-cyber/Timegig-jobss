@@ -3178,105 +3178,105 @@ export default function App() {
         </div>
 
         {/* Activation View */}
-        <div className={`absolute inset-0 bg-gray-50/80 backdrop-blur-xl z-20 transition-transform duration-300 flex flex-col p-4 pt-6 ${activeTab === 'activation' ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0 pointer-events-none'}`}>
-          <div className="max-w-md mx-auto w-full flex-1 flex flex-col gap-6 overflow-y-auto pb-10 no-scrollbar">
+        <div className={`absolute inset-0 bg-gray-50/90 backdrop-blur-xl z-20 transition-transform duration-300 flex flex-col p-3 pt-4 overflow-hidden ${activeTab === 'activation' ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0 pointer-events-none'}`}>
+          <div className="max-w-md mx-auto w-full flex-1 flex flex-col gap-3 h-full max-h-full overflow-hidden pb-2">
             {verificationStep === null ? (
               <>
-                <div className="text-center py-4">
-                  <h2 className="text-3xl font-black text-black tracking-tight">TimeGiG Pro</h2>
-                  <p className="text-gray-500 text-sm font-medium mt-1">Unlock premium location features</p>
+                <div className="text-center py-2">
+                  <h2 className="text-2xl font-black text-black tracking-tight">TimeGiG Pro</h2>
+                  <p className="text-gray-500 text-xs font-medium mt-0.5">Unlock premium location features</p>
                   {isReferralUser && !isApproved && (
-                    <div className="mt-3 bg-emerald-50 text-emerald-700 px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest inline-flex items-center gap-2 border border-emerald-100">
+                    <div className="mt-2 bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest inline-flex items-center gap-1.5 border border-emerald-100">
                       <Sparkles className="w-3 h-3" /> 30-Day Free Trial Available
                     </div>
                   )}
                 </div>
-                <div className="bg-white rounded-[2rem] shadow-sm border border-gray-100 flex flex-col relative overflow-hidden group shrink-0">
-                  <div className="p-6">
-                    <div className="flex justify-between items-start mb-4">
+                <div className="bg-white rounded-3xl shadow-sm border border-gray-100 flex flex-col relative overflow-hidden group shrink-0">
+                  <div className="p-5">
+                    <div className="flex justify-between items-start mb-2">
                       <div>
-                        <span className="text-emerald-600 text-[10px] font-black uppercase tracking-widest mb-1 block">Passive Income</span>
-                        <h3 className="text-xl font-black text-black">Tenant Sub</h3>
+                        <span className="text-emerald-600 text-[9px] font-black uppercase tracking-widest mb-0.5 block">Passive Income</span>
+                        <h3 className="text-lg font-black text-black">Tenant Sub</h3>
                       </div>
                       <div className="text-right">
-                        <div className="text-2xl font-black text-black">R399,00</div>
-                        <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Per Month</div>
+                        <div className="text-xl font-black text-black">R399,00</div>
+                        <div className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Per Month</div>
                       </div>
                     </div>
-                    <p className="text-sm text-gray-600 mb-6 font-medium">Build your verified network of job seekers and tenants while keeping your account active.</p>
-                    <button onClick={() => startVerification('Tenant Sub')} className="w-full py-4 bg-black text-white font-bold rounded-2xl active:scale-95 transition-all text-sm">
+                    <p className="text-xs text-gray-600 mb-4 font-medium leading-relaxed">Build your verified network of job seekers and tenants while keeping your account active.</p>
+                    <button onClick={() => startVerification('Tenant Sub')} className="w-full py-3 bg-black text-white font-bold rounded-2xl active:scale-95 transition-all text-xs">
                       {isReferralUser && !isApproved ? 'Start 30-Day Free Trial (Tenant)' : 'Activate Tenant Sub'}
                     </button>
                   </div>
                 </div>
-                <div className="bg-black rounded-[2rem] shadow-2xl flex flex-col relative overflow-hidden group shrink-0">
-                  <div className="p-6">
-                    <div className="flex justify-between items-start mb-4">
+                <div className="bg-black rounded-3xl shadow-xl flex flex-col relative overflow-hidden group shrink-0">
+                  <div className="p-5">
+                    <div className="flex justify-between items-start mb-2">
                       <div>
-                        <span className="text-gray-400 text-[10px] font-black uppercase tracking-widest mb-1 block">Full Access</span>
-                        <h3 className="text-xl font-black text-white">User Sub</h3>
+                        <span className="text-gray-400 text-[9px] font-black uppercase tracking-widest mb-0.5 block">Full Access</span>
+                        <h3 className="text-lg font-black text-white">User Sub</h3>
                       </div>
                       <div className="text-right">
-                        <div className="text-2xl font-black text-white">R29,99</div>
-                        <div className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Per Month</div>
+                        <div className="text-xl font-black text-white">R29,99</div>
+                        <div className="text-[9px] font-bold text-gray-500 uppercase tracking-widest">Per Month</div>
                       </div>
                     </div>
-                    <p className="text-sm text-gray-400 mb-6 font-medium">Use all app features and keep your account active with a low monthly fee.</p>
-                    <button onClick={() => startVerification('User Sub')} className="w-full py-4 bg-white text-black font-bold rounded-2xl active:scale-95 transition-all text-sm">
+                    <p className="text-xs text-gray-400 mb-4 font-medium leading-relaxed">Use all app features and keep your account active with a low monthly fee.</p>
+                    <button onClick={() => startVerification('User Sub')} className="w-full py-3 bg-white text-black font-bold rounded-2xl active:scale-95 transition-all text-xs">
                       {isReferralUser && !isApproved ? 'Start 30-Day Free Trial (User)' : 'Activate User Sub'}
                     </button>
                   </div>
                 </div>
               </>
             ) : (
-              <div className="flex flex-col flex-1 h-full animate-in fade-in slide-in-from-bottom-4 duration-500">
-                <button onClick={() => { stopCamera(); setVerificationStep(null); }} className="flex items-center gap-2 text-gray-500 font-bold uppercase tracking-widest text-[10px] mb-8 active:scale-95 transition-all">
+              <div className="flex flex-col flex-1 h-full max-h-full overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-300">
+                <button onClick={() => { stopCamera(); setVerificationStep(null); }} className="flex items-center gap-1.5 text-gray-500 font-bold uppercase tracking-widest text-[10px] mb-2 active:scale-95 transition-all shrink-0">
                   <ChevronLeft className="w-4 h-4" /> Back to Plans
                 </button>
-                <div className="bg-white rounded-[2.5rem] p-8 shadow-xl border border-gray-100 flex-1 flex flex-col">
+                <div className="bg-white rounded-3xl p-5 shadow-xl border border-gray-100 flex-1 flex flex-col overflow-hidden">
                   {verificationStep === 'selfie' && (
-                    <div className="flex-1 flex flex-col items-center text-center">
-                      <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center mb-4 text-blue-600">
-                        <Camera className="w-8 h-8" />
+                    <div className="flex-1 flex flex-col items-center text-center overflow-hidden">
+                      <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center mb-2 text-blue-600 shrink-0">
+                        <Camera className="w-6 h-6" />
                       </div>
-                      <h3 className="text-xl font-black text-black mb-1">Selfie Verification</h3>
-                      <p className="text-gray-500 text-xs mb-6 leading-relaxed">Position your face in the frame and capture a clear selfie.</p>
-                      <div className="w-full flex-1 flex flex-col mb-6 overflow-hidden">
+                      <h3 className="text-lg font-black text-black mb-0.5 shrink-0">Selfie Verification</h3>
+                      <p className="text-gray-500 text-[11px] mb-3 leading-relaxed shrink-0">Position your face in the frame and capture a clear selfie.</p>
+                      <div className="w-full flex-1 flex flex-col mb-3 overflow-hidden min-h-[160px]">
                         {(selfieImage && selfieImage !== "") ? (
-                          <div className="relative flex-1 rounded-3xl overflow-hidden border-2 border-gray-100 shadow-sm animate-in fade-in zoom-in duration-300">
+                          <div className="relative flex-1 rounded-2xl overflow-hidden border-2 border-gray-100 shadow-sm animate-in fade-in zoom-in duration-300">
                             <img src={selfieImage} alt="Selfie preview" className="w-full h-full object-cover" />
-                            <div className="absolute top-4 right-4">
-                              <button onClick={() => setSelfieImage(null)} className="p-3 bg-black/60 backdrop-blur text-white rounded-full hover:bg-black transition-colors shadow-lg active:scale-90">
-                                <RefreshCw className="w-5 h-5" />
+                            <div className="absolute top-3 right-3">
+                              <button onClick={() => setSelfieImage(null)} className="p-2.5 bg-black/60 backdrop-blur text-white rounded-full hover:bg-black transition-colors shadow-lg active:scale-90">
+                                <RefreshCw className="w-4 h-4" />
                               </button>
                             </div>
                           </div>
                         ) : (
-                          <div className={`relative flex-1 bg-black rounded-3xl overflow-hidden shadow-inner flex flex-col border-4 ${isCameraActive ? 'border-white/50' : 'border-gray-200 bg-gray-50'}`}>
+                          <div className={`relative flex-1 bg-black rounded-2xl overflow-hidden shadow-inner flex flex-col border-2 ${isCameraActive ? 'border-white/50' : 'border-gray-200 bg-gray-50'}`}>
                             <video ref={videoRef} autoPlay playsInline muted disablePictureInPicture className={`w-full h-full object-cover transition-opacity duration-500 ${isCameraActive ? 'opacity-100' : 'opacity-0'}`} style={{ transform: 'scaleX(-1)' }} />
                             {!isCameraActive && (
-                              <div className="absolute inset-0 flex flex-col items-center justify-center p-8 text-center bg-gray-50">
+                              <div className="absolute inset-0 flex flex-col items-center justify-center p-4 text-center bg-gray-50">
                                 {cameraError ? (
-                                  <div className="space-y-4">
-                                    <div className="w-12 h-12 bg-red-50 text-red-600 rounded-full flex items-center justify-center mx-auto">
-                                      <X className="w-6 h-6" />
+                                  <div className="space-y-3">
+                                    <div className="w-10 h-10 bg-red-50 text-red-600 rounded-full flex items-center justify-center mx-auto">
+                                      <X className="w-5 h-5" />
                                     </div>
-                                    <p className="text-red-500 text-[10px] font-black uppercase tracking-widest">{cameraError}</p>
-                                    <button onClick={startCamera} className="py-4 px-8 bg-black text-white font-bold rounded-2xl shadow-xl active:scale-95 transition-all text-xs">Retry Camera</button>
+                                    <p className="text-red-500 text-[9px] font-black uppercase tracking-widest">{cameraError}</p>
+                                    <button onClick={startCamera} className="py-2.5 px-6 bg-black text-white font-bold rounded-xl shadow-md active:scale-95 transition-all text-xs">Retry Camera</button>
                                   </div>
                                 ) : isCameraLoading ? (
-                                  <div className="space-y-4">
-                                    <div className="w-12 h-12 border-3 border-blue-600/30 border-t-blue-600 rounded-full animate-spin mx-auto" />
-                                    <p className="text-gray-400 text-[10px] font-black uppercase tracking-widest">Waking up camera...</p>
+                                  <div className="space-y-3">
+                                    <div className="w-10 h-10 border-3 border-blue-600/30 border-t-blue-600 rounded-full animate-spin mx-auto" />
+                                    <p className="text-gray-400 text-[9px] font-black uppercase tracking-widest">Waking up camera...</p>
                                   </div>
                                 ) : (
-                                  <div className="space-y-6">
-                                    <div className="w-20 h-20 bg-blue-50 rounded-3xl flex items-center justify-center mx-auto text-blue-600">
-                                      <Camera className="w-10 h-10" />
+                                  <div className="space-y-3">
+                                    <div className="w-14 h-14 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto text-blue-600">
+                                      <Camera className="w-7 h-7" />
                                     </div>
-                                    <div className="space-y-4">
-                                      <p className="text-gray-500 text-xs font-medium">Please enable your camera to take a selfie directly in the app.</p>
-                                      <button onClick={startCamera} className="py-4 px-10 bg-blue-600 text-white font-black uppercase tracking-widest rounded-2xl shadow-xl shadow-blue-100 active:scale-95 transition-all text-xs">Start Camera</button>
+                                    <div className="space-y-2">
+                                      <p className="text-gray-500 text-[11px] font-medium">Please enable your camera to take a selfie.</p>
+                                      <button onClick={startCamera} className="py-3 px-8 bg-blue-600 text-white font-black uppercase tracking-widest rounded-xl shadow-lg active:scale-95 transition-all text-xs">Start Camera</button>
                                     </div>
                                   </div>
                                 )}
@@ -3284,17 +3284,17 @@ export default function App() {
                             )}
                             {isCameraActive && (
                               <>
-                                <div className="absolute inset-0 border-[30px] border-black/40 pointer-events-none transition-colors duration-300">
-                                  <div className={`w-full h-full border-4 border-dashed rounded-[3rem] transition-colors duration-300 ${isFaceDetected ? 'border-emerald-500 bg-emerald-500/5' : 'border-white/40'}`} />
+                                <div className="absolute inset-0 border-[20px] border-black/40 pointer-events-none transition-colors duration-300">
+                                  <div className={`w-full h-full border-4 border-dashed rounded-2xl transition-colors duration-300 ${isFaceDetected ? 'border-emerald-500 bg-emerald-500/5' : 'border-white/40'}`} />
                                 </div>
-                                <div className="absolute top-6 left-1/2 -translate-x-1/2 z-20">
-                                  <div className={`px-4 py-2 rounded-full backdrop-blur-md flex items-center gap-2 transition-all duration-300 ${isFaceDetected ? 'bg-emerald-500 text-white scale-110 shadow-lg' : 'bg-black/40 text-white/80'}`}>
-                                    {isFaceDetected ? <Check className="w-4 h-4" /> : <Scan className="w-4 h-4 animate-pulse" />}
-                                    <span className="text-[10px] font-black uppercase tracking-[0.2em]">{isFaceDetected ? 'Face Detected' : 'Detecting Face...'}</span>
+                                <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20">
+                                  <div className={`px-3 py-1 rounded-full backdrop-blur-md flex items-center gap-1.5 transition-all duration-300 ${isFaceDetected ? 'bg-emerald-500 text-white scale-105 shadow-md' : 'bg-black/40 text-white/80'}`}>
+                                    {isFaceDetected ? <Check className="w-3.5 h-3.5" /> : <Scan className="w-3.5 h-3.5 animate-pulse" />}
+                                    <span className="text-[9px] font-black uppercase tracking-wider">{isFaceDetected ? 'Face Detected' : 'Detecting Face...'}</span>
                                   </div>
                                 </div>
-                                <button onClick={capturePhoto} className={`absolute bottom-6 left-1/2 -translate-x-1/2 w-16 h-16 rounded-full border-4 flex items-center justify-center shadow-2xl active:scale-90 transition-all z-10 ${isFaceDetected ? 'bg-emerald-500 border-white/50' : 'bg-white border-white/30'}`}>
-                                  <div className={`w-12 h-12 rounded-full border-2 ${isFaceDetected ? 'bg-emerald-400 border-white/20' : 'bg-white border-black/10'}`} />
+                                <button onClick={capturePhoto} className={`absolute bottom-3 left-1/2 -translate-x-1/2 w-14 h-14 rounded-full border-4 flex items-center justify-center shadow-2xl active:scale-90 transition-all z-10 ${isFaceDetected ? 'bg-emerald-500 border-white/50' : 'bg-white border-white/30'}`}>
+                                  <div className={`w-10 h-10 rounded-full border-2 ${isFaceDetected ? 'bg-emerald-400 border-white/20' : 'bg-white border-black/10'}`} />
                                 </button>
                               </>
                             )}
@@ -3302,10 +3302,10 @@ export default function App() {
                         )}
                         <canvas ref={canvasRef} className="hidden" />
                       </div>
-                      <div className="w-full flex flex-col gap-3">
-                        <button onClick={() => { if (selfieImage) setVerificationStep('id'); }} disabled={!selfieImage} className={`w-full py-4 font-bold rounded-2xl active:scale-95 transition-all shadow-lg text-sm ${selfieImage ? 'bg-black text-white' : 'bg-gray-100 text-gray-400'}`}>Continue to ID Upload</button>
+                      <div className="w-full flex flex-col gap-2 shrink-0">
+                        <button onClick={() => { if (selfieImage) setVerificationStep('id'); }} disabled={!selfieImage} className={`w-full py-3.5 font-bold rounded-2xl active:scale-95 transition-all shadow-md text-xs ${selfieImage ? 'bg-black text-white' : 'bg-gray-100 text-gray-400'}`}>Continue to ID Upload</button>
                         {!isCameraActive && !selfieImage && (
-                          <label className={`text-[10px] font-black uppercase tracking-widest cursor-pointer transition-all mt-2 py-3 border-2 border-dashed rounded-xl flex items-center justify-center gap-2 ${cameraError ? 'border-blue-500 text-blue-600 bg-blue-50' : 'border-gray-200 text-gray-400 hover:text-black'}`}>
+                          <label className={`text-[9px] font-black uppercase tracking-widest cursor-pointer transition-all py-2 border-2 border-dashed rounded-xl flex items-center justify-center gap-1.5 ${cameraError ? 'border-blue-500 text-blue-600 bg-blue-50' : 'border-gray-200 text-gray-400 hover:text-black'}`}>
                             <input type="file" accept="image/*" className="hidden" onChange={handleFileUpload} />
                             <Upload className="w-3 h-3" /> OR UPLOAD FACE-ONLY PICTURE
                           </label>
