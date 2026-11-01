@@ -7,7 +7,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, useMap, useMapEvents, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
-import { MapPin, Compass, Search, LocateFixed, Zap, X, Plus, Minus, Layers, Check, Camera, FileText, CreditCard, Clock, ChevronLeft, Upload, RefreshCw, Scan, LayoutGrid, Users, Trash2, User, Mail, Phone, Link2, Briefcase, Star, MapPinned, Lock, Unlock, Globe, Target, LogIn, LogOut, Maximize2, CheckCircle2, Sparkles, ShieldCheck, Gift, HelpCircle, Settings, Volume2, VolumeX, Bell, AlertTriangle, ShieldAlert, Crown, AlertCircle, Inbox, Archive, Send, Eye, EyeOff } from 'lucide-react';
+import { MapPin, Compass, Search, LocateFixed, Zap, X, Plus, Minus, Layers, Check, Camera, FileText, CreditCard, Clock, ChevronLeft, Upload, RefreshCw, Scan, LayoutGrid, Users, Trash2, User, Mail, Phone, Link2, Briefcase, Star, MapPinned, Lock, Unlock, Globe, Target, LogIn, LogOut, Maximize2, CheckCircle2, Sparkles, ShieldCheck, Gift, HelpCircle, Settings, Volume2, VolumeX, Bell, AlertTriangle, ShieldAlert, Crown, AlertCircle, Inbox, Archive, Send, Eye, EyeOff, ShoppingBag } from 'lucide-react';
 import * as faceapi from 'face-api.js';
 import { auth, db } from './lib/firebase';
 import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut, User as FirebaseUser, signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
@@ -456,7 +456,12 @@ export default function App() {
   const [isSearching, setIsSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [isSatellite, setIsSatellite] = useState(false);
-  const [activeTab, setActiveTab] = useState<'map' | 'activation' | 'tenant' | 'profile' | 'auth'>('map');
+  const [activeTab, setActiveTab] = useState<'map' | 'activation' | 'tenant' | 'referrals' | 'seekers' | 'profile' | 'shop' | 'auth'>('map');
+  const [seekerSearchQuery, setSeekerSearchQuery] = useState('');
+  const [seekerTradeFilter, setSeekerTradeFilter] = useState('All');
+  const [offerGigModalSeeker, setOfferGigModalSeeker] = useState<any | null>(null);
+  const [offerGigTitle, setOfferGigTitle] = useState('');
+  const [offerGigDetails, setOfferGigDetails] = useState('');
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [userRole, setUserRole] = useState<'User' | 'Tenant'>('User');
   const [verificationStep, setVerificationStep] = useState<VerificationStep>(null);
@@ -657,7 +662,8 @@ export default function App() {
     hasShownActivation: false,
     tenantSubFee: 100,
     userSubFee: 25,
-    bankTransferDetails: ''
+    bankTransferDetails: '',
+    isAvailableForWork: true
   });
 
   const [showFeesModal, setShowFeesModal] = useState<{ type: 'Tenant' | 'User'; fee: number } | null>(null);
@@ -850,7 +856,8 @@ export default function App() {
             hasShownActivation: data.hasShownActivation || false,
             tenantSubFee: data.tenantSubFee ?? 100,
             userSubFee: data.userSubFee ?? 25,
-            bankTransferDetails: data.bankTransferDetails || ''
+            bankTransferDetails: data.bankTransferDetails || '',
+            isAvailableForWork: data.isAvailableForWork !== false
           });
           if (data.photoURL) setSelfieImage(data.photoURL);
           
@@ -877,7 +884,8 @@ export default function App() {
           hasShownActivation: false,
           tenantSubFee: 100,
           userSubFee: 25,
-          bankTransferDetails: ''
+          bankTransferDetails: '',
+          isAvailableForWork: true
         });
         sessionStorage.removeItem('login_greeted');
       }
@@ -994,9 +1002,9 @@ export default function App() {
     return () => unsubscribe();
   }, [user]);
 
-  // Listen for all users and tenants when Main Tenant timegig2026@gmail.com is logged in
+  // Listen for all users for Seekers feature and Overseer center
   useEffect(() => {
-    if (!db || !user || user.email?.toLowerCase() !== 'timegig2026@gmail.com') {
+    if (!db || !user) {
       setAllUsersList([]);
       return;
     }
@@ -1311,6 +1319,112 @@ export default function App() {
       setError(err?.message || 'Failed to seed sample tenant.');
     }
   };
+
+  // Seeker availability toggle handler
+  const currentUserAvailability = profileData.isAvailableForWork !== false;
+  const handleToggleMyAvailability = async () => {
+    if (!user) return;
+    try {
+      const newStatus = !currentUserAvailability;
+      await updateDoc(doc(db, 'users', user.uid), {
+        isAvailableForWork: newStatus
+      });
+      setProfileData((prev: any) => ({ ...prev, isAvailableForWork: newStatus }));
+      playSmoothReceiveSound();
+    } catch (err) {
+      console.warn('Toggle availability notice:', err);
+    }
+  };
+
+  // Seed Sample Verified Seekers into Firestore
+  const seedSampleSeekers = async () => {
+    try {
+      const sampleSeekers = [
+        {
+          uid: 'seeker_sipho_001',
+          name: 'Sipho',
+          surname: 'Mthembu',
+          email: 'sipho.mthembu@example.com',
+          contact: '+27821112233',
+          location: 'Johannesburg, Gauteng',
+          workTrade: 'Plumbing',
+          experience: '8 years of professional residential plumbing, pipe fitting, geyser repairs and blockage clearing.',
+          reference: 'BuildRight Construction (+27823334455)',
+          isApproved: true,
+          isAvailableForWork: true,
+          role: 'User',
+          photoURL: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=300&q=80'
+        },
+        {
+          uid: 'seeker_thandiwe_002',
+          name: 'Thandiwe',
+          surname: 'Khumalo',
+          email: 'thandi.khumalo@example.com',
+          contact: '+27832223344',
+          location: 'Cape Town, Western Cape',
+          workTrade: 'Cleaning',
+          experience: '5 years deep cleaning, Airbnb turnover, office sanitation and home organizing.',
+          reference: 'CapeClean Services (+27834445566)',
+          isApproved: true,
+          isAvailableForWork: true,
+          role: 'User',
+          photoURL: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=300&q=80'
+        },
+        {
+          uid: 'seeker_johan_003',
+          name: 'Johan',
+          surname: 'van der Merwe',
+          email: 'johan.vdm@example.com',
+          contact: '+27843334455',
+          location: 'Pretoria, Gauteng',
+          workTrade: 'Electrician',
+          experience: 'Certified electrician specializing in DB boards, solar inverter wiring and generator installation.',
+          reference: 'Pretoria Power Solutions (+27845556677)',
+          isApproved: true,
+          isAvailableForWork: true,
+          role: 'User',
+          photoURL: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=300&q=80'
+        },
+        {
+          uid: 'seeker_david_004',
+          name: 'David',
+          surname: 'Osei',
+          email: 'david.osei@example.com',
+          contact: '+27854445566',
+          location: 'Durban, KwaZulu-Natal',
+          workTrade: 'Security',
+          experience: '10 years site security, event access control and VIP personal protection.',
+          reference: 'GuardForce SA (+27856667788)',
+          isApproved: true,
+          isAvailableForWork: true,
+          role: 'User',
+          photoURL: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=300&q=80'
+        }
+      ];
+
+      for (const seeker of sampleSeekers) {
+        await setDoc(doc(db, 'users', seeker.uid), seeker, { merge: true });
+      }
+      playSmoothReceiveSound();
+      alert('✅ Sample verified seekers added successfully!');
+    } catch (e) {
+      console.warn('Seed sample seekers notice:', e);
+      setError('Failed to seed sample seekers.');
+    }
+  };
+
+  const filteredSeekers = allUsersList.filter(u => {
+    if (user && u.uid === user.uid) return false;
+    const searchLower = seekerSearchQuery.trim().toLowerCase();
+    const matchesSearch = !searchLower || 
+      `${u.name || ''} ${u.surname || ''}`.toLowerCase().includes(searchLower) ||
+      (u.location || '').toLowerCase().includes(searchLower) ||
+      (u.workTrade || '').toLowerCase().includes(searchLower) ||
+      (u.experience || '').toLowerCase().includes(searchLower);
+    
+    const matchesTrade = seekerTradeFilter === 'All' || u.workTrade === seekerTradeFilter;
+    return matchesSearch && matchesTrade;
+  });
 
   const filteredTenants = allTenants.filter(t => {
     if (overseerFilter === 'delinquent') return !t.isTakenOver && getTenantMetrics(t).isDelinquent;
@@ -2103,6 +2217,20 @@ export default function App() {
               onSubmit={handleSearch}
               className="flex items-center p-1"
             >
+              <button
+                type="button"
+                onClick={() => setActiveTab('profile')}
+                className="w-10 h-10 rounded-full overflow-hidden border border-gray-200 shadow-sm ml-1 hover:scale-105 transition-all"
+                title="Profile"
+              >
+                {selfieImage ? (
+                  <img src={selfieImage} alt="Profile" className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center bg-gray-100 text-gray-400">
+                    <User className="w-5 h-5" />
+                  </div>
+                )}
+              </button>
               <div className="pl-3 text-gray-400">
                 <Search className="w-5 h-5" />
               </div>
@@ -2241,8 +2369,14 @@ export default function App() {
             attributionControl={false}
           >
             {isSatellite ? <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" /> : <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />}
-            <div className="absolute bottom-16 right-4 z-[1000] flex flex-col gap-2 pointer-events-auto">
+            <div className="absolute bottom-24 right-4 z-[1000] flex flex-col gap-2 pointer-events-auto">
               <ZoomControls isSatellite={isSatellite} setIsSatellite={setIsSatellite} />
+              <button
+                onClick={() => setActiveTab('profile')}
+                className="p-3 bg-white text-black rounded-xl shadow-xl border border-gray-100 flex items-center justify-center"
+              >
+                <User className="w-5 h-5" />
+              </button>
               <button
                 onClick={() => requestLocation(false)}
                 disabled={isLocating}
@@ -2550,10 +2684,31 @@ export default function App() {
                         onClick={async () => {
                           if (popDocument && selfieImage && idDocument && user) {
                             try {
+                              // Check referral limits
+                              const referrerId = profileData.referrerId || localStorage.getItem('timegig_ref') || '';
+                              if (referrerId) {
+                                const q = query(collection(db, 'verifications'), where('referrerId', '==', referrerId));
+                                const snapshot = await getDocs(q);
+                                const referrals = snapshot.docs.map(d => d.data());
+                                
+                                const tenantReferrals = referrals.filter(r => r.type === 'Tenant').length;
+                                const userReferrals = referrals.filter(r => r.type === 'User').length;
+                                
+                                const isTargetTenant = selectedPlan?.includes('Tenant');
+                                if (isTargetTenant && tenantReferrals >= 10) {
+                                  alert('Sorry, this referrer has reached the limit of 10 tenant referrals.');
+                                  return;
+                                }
+                                if (!isTargetTenant && userReferrals >= 100) {
+                                  alert('Sorry, this referrer has reached the limit of 100 user referrals.');
+                                  return;
+                                }
+                              }
+
                               const vRef = collection(db, 'verifications');
                               await addDoc(vRef, {
                                 userId: user.uid,
-                                referrerId: profileData.referrerId || localStorage.getItem('timegig_ref') || '',
+                                referrerId: referrerId,
                                 userName: profileData.name && profileData.surname ? `${profileData.name} ${profileData.surname}` : (user.displayName || 'Applicant'),
                                 type: selectedPlan?.includes('Tenant') ? 'Tenant' : 'User',
                                 selfie: selfieImage,
@@ -2628,14 +2783,14 @@ export default function App() {
                   const userSubProfit = (profileData as any).userSubProfit ?? ((profileData as any).userProfit || 0);
                   const totalProfitBalance = tenantSubProfit + userSubProfit;
                   return (
-                    <div className="bg-black rounded-3xl p-4 shadow-xl relative overflow-hidden group border border-white/10 space-y-3 scale-95 origin-center">
-                      <div className="absolute top-0 right-0 p-3 opacity-20">
-                        <LayoutGrid className="w-8 h-8 text-white group-hover:rotate-12 transition-transform" />
+                    <div className="bg-black rounded-[2rem] p-8 shadow-2xl relative overflow-hidden group border border-white/10 space-y-4">
+                      <div className="absolute top-0 right-0 p-6 opacity-20">
+                        <LayoutGrid className="w-16 h-16 text-white group-hover:rotate-12 transition-transform" />
                       </div>
                       <div className="flex items-center justify-between relative z-10">
                         <div>
-                          <span className="text-gray-400 text-[9px] font-black uppercase tracking-wider block">Profit Balance</span>
-                          <div className="text-2xl font-black text-white tracking-tight">
+                          <span className="text-gray-400 text-[10px] font-black uppercase tracking-wider block">Profit Balance</span>
+                          <div className="text-4xl font-black text-white tracking-tight">
                             R{totalProfitBalance.toFixed(2)}
                           </div>
                         </div>
@@ -2651,30 +2806,30 @@ export default function App() {
                                 });
                               }
                             }}
-                            className="bg-white/10 hover:bg-white/20 p-2 rounded-xl text-white transition-colors"
+                            className="bg-white/10 hover:bg-white/20 p-3 rounded-2xl text-white transition-colors"
                             title="Reset Balance"
                           >
-                            <RefreshCw className="w-3.5 h-3.5" />
+                            <RefreshCw className="w-5 h-5" />
                           </button>
                         )}
                       </div>
 
-                      <div className="grid grid-cols-2 gap-2 relative z-10">
+                      <div className="grid grid-cols-2 gap-4 relative z-10">
                         <button 
                           onClick={() => userRole === 'Tenant' && setShowFeesModal({ type: 'Tenant', fee: profileData.tenantSubFee || 100 })}
-                          className={`rounded-xl p-2.5 border transition-all text-left ${userRole === 'Tenant' ? 'bg-white/5 border-white/10 hover:bg-white/10 active:scale-95' : 'bg-white/5 border-white/5 cursor-default'}`}
+                          className={`rounded-2xl p-4 border transition-all text-left ${userRole === 'Tenant' ? 'bg-white/5 border-white/10 hover:bg-white/10 active:scale-95' : 'bg-white/5 border-white/5 cursor-default'}`}
                         >
-                          <span className="text-gray-500 text-[8px] font-black uppercase tracking-wider block mb-0.5">Tenant Sub</span>
-                          <div className="text-sm font-black text-emerald-400">R{tenantSubProfit.toFixed(2)}</div>
-                          {userRole === 'Tenant' && <span className="text-[7px] text-gray-500 font-bold uppercase">Tap to set fee</span>}
+                          <span className="text-gray-500 text-[9px] font-black uppercase tracking-wider block mb-1">Tenant Sub Profit</span>
+                          <div className="text-lg font-black text-emerald-400">R{tenantSubProfit.toFixed(2)}</div>
+                          {userRole === 'Tenant' && <span className="text-[8px] text-gray-500 font-bold uppercase">Tap to set fee</span>}
                         </button>
                         <button 
                           onClick={() => userRole === 'Tenant' && setShowFeesModal({ type: 'User', fee: profileData.userSubFee || 25 })}
-                          className={`rounded-xl p-2.5 border transition-all text-left ${userRole === 'Tenant' ? 'bg-white/5 border-white/10 hover:bg-white/10 active:scale-95' : 'bg-white/5 border-white/5 cursor-default'}`}
+                          className={`rounded-2xl p-4 border transition-all text-left ${userRole === 'Tenant' ? 'bg-white/5 border-white/10 hover:bg-white/10 active:scale-95' : 'bg-white/5 border-white/5 cursor-default'}`}
                         >
-                          <span className="text-gray-500 text-[8px] font-black uppercase tracking-wider block mb-0.5">User Sub</span>
-                          <div className="text-sm font-black text-blue-400">R{userSubProfit.toFixed(2)}</div>
-                          {userRole === 'Tenant' && <span className="text-[7px] text-gray-500 font-bold uppercase">Tap to set fee</span>}
+                          <span className="text-gray-500 text-[9px] font-black uppercase tracking-wider block mb-1">User Sub Profit</span>
+                          <div className="text-lg font-black text-blue-400">R{userSubProfit.toFixed(2)}</div>
+                          {userRole === 'Tenant' && <span className="text-[8px] text-gray-500 font-bold uppercase">Tap to set fee</span>}
                         </button>
                       </div>
                     </div>
@@ -3123,38 +3278,7 @@ export default function App() {
                     >Facebook</button>
                   </div>
                 </div>
-                <button 
-                  onClick={() => setShowReferralList(true)}
-                  className="w-full bg-white rounded-[2rem] p-6 shadow-sm border border-gray-100 flex items-center justify-between group active:scale-95 transition-all"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="w-14 h-14 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors">
-                      <Users className="w-7 h-7" />
-                    </div>
-                    <div className="text-left">
-                      <h4 className="font-black text-black text-lg">Total Referrals</h4>
-                      {(() => {
-                        const pendingCount = referrals.filter(r => r.status === 'pending').length;
-                        if (pendingCount > 0) {
-                          return (
-                            <p className="text-amber-600 text-xs font-bold uppercase tracking-widest flex items-center gap-1.5">
-                              <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-                              {pendingCount} Application{pendingCount === 1 ? '' : 's'} Pending
-                            </p>
-                          );
-                        }
-                        return (
-                          <p className="text-gray-400 text-xs font-bold uppercase tracking-widest">
-                            0 Applications Pending
-                          </p>
-                        );
-                      })()}
-                    </div>
-                  </div>
-                  <div className="w-10 h-10 bg-gray-50 rounded-full flex items-center justify-center group-hover:translate-x-1 transition-transform">
-                    <ChevronLeft className="w-5 h-5 text-gray-400 rotate-180" />
-                  </div>
-                </button>
+
               </div>
             ) : referralView ? (
               <div className="max-w-md mx-auto w-full flex-1 flex flex-col pb-20 animate-in fade-in slide-in-from-right-4 duration-300">
@@ -3414,6 +3538,14 @@ export default function App() {
                 {/* Top Corner Action Controls */}
                 <div className="absolute -top-4 left-4 right-4 flex items-center justify-between z-20">
                   <button 
+                    onClick={() => setActiveTab('map')}
+                    className="p-3 bg-white/10 hover:bg-white/20 rounded-2xl text-white transition-all active:scale-95 flex items-center gap-1.5 backdrop-blur-sm border border-white/10 shadow-lg"
+                    title="Back"
+                  >
+                    <ChevronLeft className="w-4 h-4 text-white" />
+                  </button>
+
+                  <button 
                     onClick={() => setShowSettingsModal(true)}
                     className="p-3 bg-white/10 hover:bg-white/20 rounded-2xl text-white transition-all active:scale-95 flex items-center gap-1.5 backdrop-blur-sm border border-white/10 shadow-lg"
                     title="Settings"
@@ -3570,6 +3702,457 @@ export default function App() {
         </div>
       </div>
 
+        {/* Total Referrals View (Bottom Menu Feature) */}
+        <div className={`absolute inset-0 bg-gray-50/80 backdrop-blur-xl z-35 transition-transform duration-300 flex flex-col overflow-hidden ${activeTab === 'referrals' ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0 pointer-events-none'}`}>
+          <div className="flex-1 flex flex-col p-6 pt-12 overflow-y-auto no-scrollbar">
+            {referralView ? (
+              <div className="max-w-md mx-auto w-full flex-1 flex flex-col pb-20 animate-in fade-in slide-in-from-right-4 duration-300">
+                <button onClick={() => setReferralView(null)} className="flex items-center gap-2 text-gray-500 font-bold uppercase tracking-widest text-[10px] mb-6 active:scale-95 transition-all">
+                  <ChevronLeft className="w-4 h-4" /> Back to Referral List
+                </button>
+                <div className="bg-white rounded-[2.5rem] p-6 shadow-sm border border-gray-100 space-y-6">
+                  <div className="flex items-center gap-4 border-b border-gray-100 pb-6">
+                    <img src={referralView.selfie} className="w-20 h-20 rounded-3xl object-cover shadow-md" alt="" />
+                    <div>
+                      <span className={`text-[9px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-widest mb-1 inline-block ${referralView.type === 'Tenant' ? 'bg-emerald-500 text-white' : 'bg-blue-500 text-white'}`}>{referralView.type}</span>
+                      <h3 className="text-xl font-black text-black">{referralView.name}</h3>
+                      <p className="text-xs text-gray-400 font-bold">{referralView.date}</p>
+                    </div>
+                  </div>
+
+                  {referralView.type === 'Tenant' && (referralView.status === 'active' || referralView.status === 'approved') && (
+                    <ReferralCountdownWidget referral={referralView} />
+                  )}
+
+                  <div className="space-y-4">
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2"><FileText className="w-3 h-3" /> ID / Passport Document</span>
+                        <button onClick={() => setFullScreenImage({ url: referralView.idDoc, title: 'ID / Passport Document', subtitle: referralView.name })} className="text-[10px] font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1 uppercase tracking-wider">
+                          <Maximize2 className="w-3 h-3" /> Full Screen
+                        </button>
+                      </div>
+                      <div onClick={() => setFullScreenImage({ url: referralView.idDoc, title: 'ID / Passport Document', subtitle: referralView.name })} className="aspect-[4/3] rounded-2xl overflow-hidden border border-gray-100 bg-gray-50 cursor-pointer relative group shadow-sm hover:shadow-md transition-all">
+                        <img src={referralView.idDoc} className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform" alt="ID Doc" />
+                      </div>
+                    </div>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2"><CreditCard className="w-3 h-3" /> Proof of Payment</span>
+                        <button onClick={() => setFullScreenImage({ url: referralView.pop, title: 'Proof of Payment (POP)', subtitle: referralView.name })} className="text-[10px] font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1 uppercase tracking-wider">
+                          <Maximize2 className="w-3 h-3" /> Full Screen
+                        </button>
+                      </div>
+                      <div onClick={() => setFullScreenImage({ url: referralView.pop, title: 'Proof of Payment (POP)', subtitle: referralView.name })} className="aspect-[16/9] rounded-2xl overflow-hidden border border-gray-100 bg-gray-50 cursor-pointer relative group shadow-sm hover:shadow-md transition-all">
+                        <img src={referralView.pop} className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform" alt="POP" />
+                      </div>
+                    </div>
+                    <div className="space-y-4 pt-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <button onClick={async () => { try { await updateDoc(doc(db, 'verifications', referralView.id), { status: 'rejected' }); setReferralView(null); } catch (err) { console.warn(err); } }} className="py-4 bg-red-50 text-red-600 font-bold rounded-2xl active:scale-95 transition-all flex items-center justify-center gap-2 hover:bg-red-100 text-xs">
+                          <Trash2 className="w-4 h-4" /> Reject
+                        </button>
+                        <button disabled={referralView.status === 'active' || referralView.status === 'approved'} onClick={async () => {
+                          if (referralView.status === 'active' || referralView.status === 'approved') return;
+                          try {
+                            const vDoc = await getDoc(doc(db, 'verifications', referralView.id));
+                            if (vDoc.exists()) {
+                              const vData = vDoc.data();
+                              const targetUserId = vData.userId;
+                              const targetRole = vData.type || 'User';
+                              const isTenant = targetRole === 'Tenant';
+                              const subscriptionExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+                              await updateDoc(doc(db, 'users', targetUserId), {
+                                isApproved: true,
+                                role: targetRole,
+                                photoURL: vData.selfie,
+                                subscriptionExpiresAt: subscriptionExpiresAt,
+                                subscriptionPlan: isTenant ? 'Tenant Sub' : 'User Sub'
+                              });
+                              await updateDoc(doc(db, 'verifications', referralView.id), { 
+                                status: 'active',
+                                isViewed: true,
+                                activatedAt: serverTimestamp(),
+                                subscriptionExpiresAt: subscriptionExpiresAt
+                              });
+                              const profitGain = isTenant ? 100 : 25;
+                              const profitLabel = isTenant ? 'Tenant Sub Profit' : 'User Sub Profit';
+                              if (user) {
+                                const tenantDocRef = doc(db, 'users', user.uid);
+                                const tenantDoc = await getDoc(tenantDocRef);
+                                if (tenantDoc.exists()) {
+                                  const tenantData = tenantDoc.data();
+                                  const currentTenantSubProfit = tenantData.tenantSubProfit ?? tenantData.tenantProfit ?? 0;
+                                  const currentUserSubProfit = tenantData.userSubProfit ?? tenantData.userProfit ?? 0;
+                                  const currentTenantProfit = tenantData.tenantProfit ?? 0;
+                                  const currentUserProfit = tenantData.userProfit ?? 0;
+                                  await updateDoc(tenantDocRef, {
+                                    tenantSubProfit: isTenant ? currentTenantSubProfit + profitGain : currentTenantSubProfit,
+                                    userSubProfit: !isTenant ? currentUserSubProfit + profitGain : currentUserSubProfit,
+                                    tenantProfit: isTenant ? currentTenantProfit + profitGain : currentTenantProfit,
+                                    userProfit: !isTenant ? currentUserProfit + profitGain : currentUserProfit
+                                  });
+                                }
+                              }
+                              setTenantApprovalPopup({ name: referralView.name, type: referralView.type, profitAmount: profitGain, profitLabel });
+                            }
+                            setReferralView(null);
+                          } catch (err) { console.warn(err); }
+                        }} className={`py-4 font-bold rounded-2xl active:scale-95 transition-all flex items-center justify-center gap-2 shadow-lg text-xs ${referralView.status === 'active' || referralView.status === 'approved' ? 'bg-gray-200 text-gray-500 cursor-not-allowed' : 'bg-black text-white shadow-black/20'}`}>
+                          <Check className="w-4 h-4" /> {referralView.status === 'active' || referralView.status === 'approved' ? 'Already Active' : 'Approve'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="max-w-md mx-auto w-full flex-1 flex flex-col pb-20 animate-in fade-in slide-in-from-left-4 duration-300">
+                <div className="text-center relative mb-6">
+                  <h2 className="text-3xl font-black text-black tracking-tight mb-1">Total Referrals</h2>
+                  <p className="text-gray-500 text-xs font-medium">Review Referral Applications & Subscriptions</p>
+                </div>
+
+                {/* Referral Link Copy & Share */}
+                <div className="bg-white rounded-[2rem] p-5 shadow-sm border border-gray-100 space-y-3 mb-6">
+                  <span className="text-gray-400 text-[10px] font-black uppercase tracking-widest block">Your Referral Link</span>
+                  <div className="flex items-center gap-2 bg-gray-50 p-2.5 rounded-xl border border-gray-100">
+                    <input 
+                      readOnly 
+                      value={`${window.location.origin}${window.location.pathname}?ref=${user?.uid}`} 
+                      className="flex-1 bg-transparent text-black text-xs font-mono outline-none"
+                    />
+                    <button 
+                      onClick={() => {
+                        navigator.clipboard.writeText(`${window.location.origin}${window.location.pathname}?ref=${user?.uid}`);
+                        playSmoothReceiveSound();
+                        alert('✅ Referral link copied!');
+                      }}
+                      className="p-2 bg-black text-white rounded-lg transition-all active:scale-90"
+                    >
+                      <Link2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-2 pt-1">
+                    <button 
+                      onClick={() => window.open(`https://wa.me/?text=Join TimeGiG using my referral link: ${encodeURIComponent(`${window.location.origin}${window.location.pathname}?ref=${user?.uid}`)}`, '_blank')}
+                      className="flex-1 py-2 bg-emerald-500 text-white rounded-xl font-bold text-[10px] uppercase tracking-wider"
+                    >WhatsApp</button>
+                    <button 
+                      onClick={() => window.open(`https://twitter.com/intent/tweet?url=${encodeURIComponent(`${window.location.origin}${window.location.pathname}?ref=${user?.uid}`)}`, '_blank')}
+                      className="flex-1 py-2 bg-blue-400 text-white rounded-xl font-bold text-[10px] uppercase tracking-wider"
+                    >Twitter</button>
+                    <button 
+                      onClick={() => window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(`${window.location.origin}${window.location.pathname}?ref=${user?.uid}`)}`, '_blank')}
+                      className="flex-1 py-2 bg-blue-700 text-white rounded-xl font-bold text-[10px] uppercase tracking-wider"
+                    >Facebook</button>
+                  </div>
+                </div>
+
+                {/* Referrals List */}
+                <div className="space-y-3">
+                  <h3 className="text-sm font-black text-black uppercase tracking-wider">
+                    Applications ({referrals.length})
+                  </h3>
+                  {referrals.length === 0 ? (
+                    <div className="text-center py-16 bg-white rounded-[2rem] border border-dashed border-gray-200 space-y-2">
+                      <Gift className="w-8 h-8 text-gray-300 mx-auto" />
+                      <p className="text-gray-400 font-bold uppercase tracking-widest text-xs">No referral applications found</p>
+                      <p className="text-gray-400 text-[11px]">Share your link above to start receiving tenant & user signup commissions!</p>
+                    </div>
+                  ) : referrals.map(ref => (
+                    <button 
+                      key={ref.id} 
+                      onClick={async () => {
+                        setReferralView(ref);
+                        if (!ref.isViewed) {
+                          try {
+                            await updateDoc(doc(db, 'verifications', ref.id), { isViewed: true });
+                          } catch (err) { console.warn(err); }
+                        }
+                      }} 
+                      className={`w-full bg-white p-4 rounded-3xl border flex items-center gap-4 active:scale-[0.98] transition-all hover:border-blue-200 relative overflow-hidden ${!ref.isViewed ? 'border-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.3)]' : 'border-gray-100 shadow-sm'}`}
+                    >
+                      {!ref.isViewed && (
+                        <div className="absolute top-0 right-0 w-8 h-8 bg-amber-500/10 rounded-bl-2xl flex items-center justify-center">
+                          <div className="w-2 h-2 bg-amber-500 rounded-full animate-ping" />
+                        </div>
+                      )}
+                      <img src={ref.selfie} className="w-14 h-14 rounded-2xl object-cover shadow-md" alt="" />
+                      <div className="flex-1 text-left">
+                        <h4 className="font-black text-black">{ref.name}</h4>
+                        <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                          <span className={`text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-widest ${ref.type === 'Tenant' ? 'bg-emerald-500 text-white' : 'bg-blue-500 text-white'}`}>{ref.type}</span>
+                          <span className={`text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-widest ${ref.status === 'active' || ref.status === 'approved' ? 'bg-emerald-600 text-white' : ref.status === 'frozen' ? 'bg-red-600 text-white' : 'bg-amber-500 text-white'}`}>
+                            {ref.status === 'active' || ref.status === 'approved' ? 'Active' : ref.status === 'frozen' ? 'Frozen' : 'Pending'}
+                          </span>
+                          {ref.type === 'Tenant' && (ref.status === 'active' || ref.status === 'approved') && (
+                            <ReferralListTimerPill expiresAt={ref.subscriptionExpiresAt} />
+                          )}
+                        </div>
+                      </div>
+                      <ChevronLeft className="w-4 h-4 text-gray-300 rotate-180" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Seekers Directory View (Bottom Menu Feature) */}
+        <div className={`absolute inset-0 bg-gray-50/80 backdrop-blur-xl z-35 transition-transform duration-300 flex flex-col overflow-hidden ${activeTab === 'seekers' ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0 pointer-events-none'}`}>
+          <div className="flex-1 flex flex-col p-6 pt-12 overflow-y-auto no-scrollbar">
+            <div className="max-w-md mx-auto w-full space-y-5 pb-24">
+              
+              {/* Header */}
+              <div className="text-center relative">
+                <h2 className="text-3xl font-black text-black tracking-tight mb-1">Gig Seekers</h2>
+                <p className="text-gray-500 text-xs font-medium">Connect & Hire Verified Local Trade Professionals</p>
+              </div>
+
+              {/* Logged in User Availability Toggle */}
+              <div className="bg-black text-white p-4 rounded-2xl shadow-md border border-white/10 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <div className={`w-3 h-3 rounded-full ${currentUserAvailability ? 'bg-emerald-400 animate-ping' : 'bg-gray-400'}`} />
+                  <div>
+                    <span className="text-[9px] font-black text-gray-400 uppercase tracking-wider block">Your Gig Seeking Status</span>
+                    <span className="text-xs font-black text-white">
+                      {currentUserAvailability ? 'Available for Gigs' : 'Currently Busy'}
+                    </span>
+                  </div>
+                </div>
+                <button
+                  onClick={handleToggleMyAvailability}
+                  className={`px-3.5 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all active:scale-95 ${currentUserAvailability ? 'bg-emerald-500 text-white' : 'bg-gray-800 text-gray-300'}`}
+                >
+                  {currentUserAvailability ? 'Set to Busy' : 'Set to Available'}
+                </button>
+              </div>
+
+              {/* Search Bar & Category Filters */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 bg-white p-3 rounded-2xl border border-gray-100 shadow-sm">
+                  <Search className="w-4 h-4 text-gray-400 shrink-0" />
+                  <input
+                    type="text"
+                    placeholder="Search seeker by name, trade, skills or location..."
+                    value={seekerSearchQuery}
+                    onChange={(e) => setSeekerSearchQuery(e.target.value)}
+                    className="w-full bg-transparent text-xs font-bold text-black outline-none"
+                  />
+                  {seekerSearchQuery && (
+                    <button onClick={() => setSeekerSearchQuery('')} className="p-1 text-gray-400 hover:text-black">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1 text-[10px] font-black uppercase tracking-wider">
+                  <button
+                    onClick={() => setSeekerTradeFilter('All')}
+                    className={`px-3 py-1.5 rounded-xl transition-all whitespace-nowrap ${seekerTradeFilter === 'All' ? 'bg-black text-white shadow-md' : 'bg-white text-gray-600 border border-gray-100 hover:bg-gray-50'}`}
+                  >
+                    All Trades ({allUsersList.filter(u => !user || u.uid !== user.uid).length})
+                  </button>
+                  {WORK_TRADES.slice(0, 10).map((t) => (
+                    <button
+                      key={t}
+                      onClick={() => setSeekerTradeFilter(t)}
+                      className={`px-3 py-1.5 rounded-xl transition-all whitespace-nowrap ${seekerTradeFilter === t ? 'bg-black text-white shadow-md' : 'bg-white text-gray-600 border border-gray-100 hover:bg-gray-50'}`}
+                    >
+                      {t}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Empty state & Seed Button */}
+              {filteredSeekers.length === 0 && (
+                <div className="p-8 text-center bg-white rounded-3xl border border-dashed border-gray-200 space-y-3">
+                  <Users className="w-8 h-8 text-gray-300 mx-auto" />
+                  <p className="text-gray-500 font-bold text-xs">No seekers match your search or filter.</p>
+                  <button
+                    onClick={seedSampleSeekers}
+                    className="py-3 px-5 bg-black text-white rounded-xl text-xs font-black uppercase tracking-wider shadow active:scale-95 transition-all"
+                  >
+                    Seed Sample Verified Seekers
+                  </button>
+                </div>
+              )}
+
+              {/* Seekers Cards Grid */}
+              <div className="space-y-4">
+                {filteredSeekers.map((s) => (
+                  <div key={s.uid} className="bg-white/90 backdrop-blur-md rounded-[2rem] p-5 border border-gray-100 shadow-sm space-y-4 hover:border-blue-200 transition-all">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className="relative">
+                          <div className="w-14 h-14 rounded-2xl bg-gray-100 overflow-hidden border border-gray-200 shadow-inner">
+                            {s.photoURL ? (
+                              <img src={s.photoURL} alt={s.name} className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-gray-400 font-black text-lg bg-gray-100">
+                                {(s.name || 'S')[0]}
+                              </div>
+                            )}
+                          </div>
+                          <span className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-white ${s.isAvailableForWork !== false ? 'bg-emerald-500' : 'bg-gray-400'}`} title={s.isAvailableForWork !== false ? 'Available' : 'Busy'} />
+                        </div>
+                        <div>
+                          <h4 className="font-black text-black text-base flex items-center gap-1.5">
+                            {s.name || 'Seeker'} {s.surname || ''}
+                            <ShieldCheck className="w-4 h-4 text-blue-500 shrink-0" />
+                          </h4>
+                          <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                            <span className="text-[9px] font-black px-2 py-0.5 rounded-full uppercase bg-blue-50 text-blue-700 border border-blue-100">
+                              {s.workTrade || 'General Seeker'}
+                            </span>
+                            <span className="text-[9px] font-bold text-gray-500 flex items-center gap-1">
+                              <MapPin className="w-2.5 h-2.5 text-gray-400" /> {s.location || 'Local'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <span className={`text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider ${s.isAvailableForWork !== false ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-gray-600'}`}>
+                        {s.isAvailableForWork !== false ? 'Available' : 'Busy'}
+                      </span>
+                    </div>
+
+                    {s.experience && (
+                      <p className="text-xs text-gray-600 bg-gray-50 p-3 rounded-xl border border-gray-100 leading-relaxed font-medium">
+                        "{s.experience}"
+                      </p>
+                    )}
+
+                    <div className="grid grid-cols-3 gap-2 pt-1 border-t border-gray-100">
+                      {s.contact ? (
+                        <button
+                          onClick={() => window.open(`https://wa.me/${s.contact.replace(/[^0-9]/g, '')}`, '_blank')}
+                          className="py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl font-black text-[10px] uppercase tracking-wider flex items-center justify-center gap-1 transition-all active:scale-95"
+                        >
+                          WhatsApp
+                        </button>
+                      ) : (
+                        <button disabled className="py-2.5 bg-gray-50 text-gray-300 rounded-xl font-bold text-[10px] uppercase cursor-not-allowed">
+                          WhatsApp
+                        </button>
+                      )}
+
+                      {s.contact ? (
+                        <button
+                          onClick={() => window.open(`tel:${s.contact}`, '_self')}
+                          className="py-2.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-xl font-black text-[10px] uppercase tracking-wider flex items-center justify-center gap-1 transition-all active:scale-95"
+                        >
+                          Call
+                        </button>
+                      ) : (
+                        <button disabled className="py-2.5 bg-gray-50 text-gray-300 rounded-xl font-bold text-[10px] uppercase cursor-not-allowed">
+                          Call
+                        </button>
+                      )}
+
+                      <button
+                        onClick={() => setOfferGigModalSeeker(s)}
+                        className="py-2.5 bg-black hover:bg-gray-900 text-white rounded-xl font-black text-[10px] uppercase tracking-wider flex items-center justify-center gap-1 transition-all active:scale-95 shadow-sm"
+                      >
+                        Offer Gig
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+            </div>
+          </div>
+        </div>
+
+        {/* Offer Gig Modal */}
+        {offerGigModalSeeker && (
+          <div className="fixed inset-0 z-[10500] bg-black/80 backdrop-blur-sm flex items-center justify-center p-6 animate-in fade-in duration-200">
+            <div className="bg-white rounded-[2.5rem] p-6 max-w-sm w-full space-y-4 shadow-2xl border border-gray-100">
+              <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                <div className="flex items-center gap-2">
+                  <Send className="w-5 h-5 text-blue-600" />
+                  <h3 className="font-black text-black text-base">Offer Gig to {offerGigModalSeeker.name}</h3>
+                </div>
+                <button onClick={() => setOfferGigModalSeeker(null)} className="p-1 text-gray-400 hover:text-black">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <p className="text-xs text-gray-500 font-medium">
+                Send a direct gig invitation message to <span className="font-bold text-black">{offerGigModalSeeker.name} {offerGigModalSeeker.surname || ''}</span> ({offerGigModalSeeker.workTrade || 'Seeker'}).
+              </p>
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block">Gig Offer Title / Subject</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Plumbing Repair at Sandton Office..."
+                  value={offerGigTitle}
+                  onChange={(e) => setOfferGigTitle(e.target.value)}
+                  className="w-full bg-gray-50 p-3 rounded-xl text-xs font-bold border border-gray-200 outline-none focus:border-black"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block">Offer Details & Payment Rate</label>
+                <textarea
+                  rows={3}
+                  placeholder="Describe job scope, payment rate (R), location and start time..."
+                  value={offerGigDetails}
+                  onChange={(e) => setOfferGigDetails(e.target.value)}
+                  className="w-full bg-gray-50 p-3 rounded-xl text-xs font-bold border border-gray-200 outline-none focus:border-black"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 pt-2">
+                <button
+                  onClick={() => setOfferGigModalSeeker(null)}
+                  className="flex-1 py-3 bg-gray-100 text-gray-600 rounded-xl font-bold text-xs uppercase"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={async () => {
+                    if (!offerGigTitle || !offerGigDetails) {
+                      alert('Please enter gig title and details.');
+                      return;
+                    }
+                    try {
+                      await addDoc(collection(db, 'promotions'), {
+                        senderUid: user?.uid || 'system',
+                        senderName: profileData.name ? `${profileData.name} ${profileData.surname}` : 'Gig Owner',
+                        senderEmail: user?.email || '',
+                        recipientUid: offerGigModalSeeker.uid,
+                        recipientName: offerGigModalSeeker.name,
+                        targetType: 'selected',
+                        subject: `GIG OFFER: ${offerGigTitle}`,
+                        body: offerGigDetails,
+                        createdAt: serverTimestamp(),
+                        isRead: false
+                      });
+                      playSmoothReceiveSound();
+                      alert(`✅ Gig offer sent successfully to ${offerGigModalSeeker.name}!`);
+                      setOfferGigModalSeeker(null);
+                      setOfferGigTitle('');
+                      setOfferGigDetails('');
+                    } catch (err) {
+                      console.warn('Offer gig error:', err);
+                      alert('Failed to send gig offer.');
+                    }
+                  }}
+                  className="flex-1 py-3 bg-black text-white rounded-xl font-black text-xs uppercase tracking-wider shadow active:scale-95"
+                >
+                  Send Offer
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
       {/* Auth View */}
       <div className={`absolute inset-0 bg-white z-[50] transition-transform duration-300 flex flex-col items-center justify-center p-8 ${activeTab === 'auth' ? 'translate-y-0' : 'translate-y-full'}`}>
           <div className="w-full max-w-sm flex flex-col items-center text-center space-y-8">
@@ -3654,17 +4237,21 @@ export default function App() {
                 className="flex flex-col items-center gap-0.5 text-black transition-all active:scale-90"
                 title="View GiGs Map"
               >
-                <LocateFixed className="w-6 h-6 text-black stroke-[2]" />
+                <LocateFixed className="w-8 h-8 text-black stroke-[2]" />
                 <span className="text-[9px] font-bold uppercase tracking-[0.1em] text-black">GiGs</span>
               </button>
             )}
           </div>
         ) : (
           <>
-            {userRole === 'Tenant' && (
-              <button onClick={() => { setVerificationStep(null); setActiveTab('tenant'); setShowReferralList(false); setReferralView(null); }} className="flex flex-col items-center gap-0.5 text-black transition-all active:scale-90 relative">
-                <LayoutGrid className="w-5 h-5 text-black stroke-[2]" />
-                <span className="text-[9px] font-bold uppercase tracking-[0.1em] text-black">Tenant</span>
+            {/* 1. Tenant Dashboard (For Tenants / Main Admin) */}
+            {(userRole === 'Tenant' || isMainTenant) && (
+              <button 
+                onClick={() => { setVerificationStep(null); setActiveTab(activeTab === 'tenant' ? 'map' : 'tenant'); setShowReferralList(false); setReferralView(null); }} 
+                className={`flex flex-col items-center gap-0.5 transition-all active:scale-90 relative ${activeTab === 'tenant' ? 'text-black font-black' : 'text-gray-500 hover:text-black'}`}
+              >
+                <LayoutGrid className="w-5 h-5 stroke-[2]" />
+                <span className="text-[9px] font-bold uppercase tracking-[0.1em]">Tenant</span>
                 {isMainTenant && delinquentTenants.length > 0 && (
                   <span className="absolute -top-1.5 -right-2 bg-red-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full animate-pulse shadow-sm">
                     {delinquentTenants.length}
@@ -3672,39 +4259,61 @@ export default function App() {
                 )}
               </button>
             )}
-    
+
+            {/* 2. Total Refs Feature */}
+            <button 
+              onClick={() => { setVerificationStep(null); setActiveTab(activeTab === 'referrals' ? 'map' : 'referrals'); setShowReferralList(true); setReferralView(null); }} 
+              className={`flex flex-col items-center gap-0.5 transition-all active:scale-90 relative ${activeTab === 'referrals' ? 'text-black font-black' : 'text-gray-500 hover:text-black'}`}
+              title="Total Refs"
+            >
+              <Gift className="w-5 h-5 stroke-[2]" />
+              <span className="text-[9px] font-bold uppercase tracking-[0.1em]">Refs</span>
+              {(() => {
+                const pendingCount = referrals.filter(r => r.status === 'pending').length;
+                if (pendingCount > 0) {
+                  return (
+                    <span className="absolute -top-1.5 -right-2 bg-amber-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full animate-pulse shadow-sm">
+                      {pendingCount}
+                    </span>
+                  );
+                }
+                return null;
+              })()}
+            </button>
+
+            {/* 3. GiGs Map Icon (Centered & Bigger) */}
             {showGigsIconForUser && (
               <button 
-                onClick={() => { setActiveTab('map'); setVerificationStep(null); }} 
-                className="flex flex-col items-center gap-0.5 text-black transition-all active:scale-90"
+                onClick={() => { setActiveTab(activeTab === 'map' ? 'map' : 'map'); setVerificationStep(null); }} 
+                className={`flex flex-col items-center gap-0.5 transition-all active:scale-90 relative -top-3 ${activeTab === 'map' ? 'text-black font-black' : 'text-gray-500 hover:text-black'}`}
                 title="GiGs Map"
               >
-                <LocateFixed className="w-6 h-6 text-black stroke-[2]" />
-                <span className="text-[9px] font-bold uppercase tracking-[0.1em] text-black">GiGs</span>
+                <div className="bg-black p-3 rounded-full shadow-lg border-4 border-white">
+                  <LocateFixed className="w-8 h-8 text-white stroke-[2]" />
+                </div>
+                <span className="text-[9px] font-black uppercase tracking-[0.1em] mt-1">GiGs</span>
               </button>
             )}
-    
-            {!isApproved && (
-              <button onClick={() => { setVerificationStep(null); setActiveTab('activation'); }} className="flex flex-col items-center gap-0.5 text-black transition-all active:scale-90">
-                <Zap className="w-5 h-5 text-black stroke-[2]" />
-                <span className="text-[9px] font-bold uppercase tracking-[0.1em] text-black">Activation</span>
-              </button>
-            )}
-    
-            {isApproved && userRole === 'User' && (
-              <button onClick={() => { setVerificationStep(null); setActiveTab('tenant'); }} className="flex flex-col items-center gap-0.5 text-black transition-all active:scale-90">
-                <Users className="w-5 h-5 text-black stroke-[2]" />
-                <span className="text-[9px] font-bold uppercase tracking-[0.1em] text-black">Seekers</span>
-              </button>
-            )}
-    
-            <button onClick={() => { setVerificationStep(null); setActiveTab('profile'); }} className="flex flex-col items-center gap-0.5 text-black transition-all active:scale-90">
-              {selfieImage ? (
-                <img src={selfieImage} alt="Profile" className="w-6 h-6 rounded-full object-cover border border-black" />
-              ) : (
-                <User className="w-5 h-5 text-black stroke-[2]" />
-              )}
-              <span className="text-[9px] font-bold uppercase tracking-[0.1em] text-black">Profile</span>
+
+            {/* 4. Seekers Feature */}
+            <button 
+              onClick={() => { setVerificationStep(null); setActiveTab(activeTab === 'seekers' ? 'map' : 'seekers'); }} 
+              className={`flex flex-col items-center gap-0.5 transition-all active:scale-90 ${activeTab === 'seekers' ? 'text-black font-black' : 'text-gray-500 hover:text-black'}`}
+              title="Seekers Directory"
+            >
+              <Users className="w-5 h-5 stroke-[2]" />
+              <span className="text-[9px] font-bold uppercase tracking-[0.1em]">Seekers</span>
+            </button>
+
+            {/* 5. Shop Tab */}
+            <button 
+              onClick={() => { setVerificationStep(null); setActiveTab(activeTab === 'shop' ? 'map' : 'shop'); }} 
+              className={`flex flex-col items-center gap-0.5 transition-all active:scale-90 relative ${activeTab === 'shop' ? 'text-black font-black' : 'text-gray-500 hover:text-black'}`}
+              title="Shop"
+            >
+              <ShoppingBag className="w-5 h-5 stroke-[2]" />
+              <span className="text-[9px] font-bold uppercase tracking-[0.1em]">Shop</span>
+              <span className="absolute -top-1 -right-2 bg-amber-500 text-white text-[7px] font-black px-1 rounded-full uppercase tracking-wider scale-90">Work</span>
             </button>
           </>
         )}
