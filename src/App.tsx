@@ -448,6 +448,163 @@ function TenantComplianceNoticeCountdownPill({ deadline }: { deadline: any }) {
   );
 }
 
+enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+function TenantFeeManager({ 
+  currentTenantFee, 
+  currentUserFee, 
+  userUid, 
+  playSmoothReceiveSound, 
+  handleFirestoreError 
+}: { 
+  currentTenantFee: number; 
+  currentUserFee: number; 
+  userUid: string; 
+  playSmoothReceiveSound: () => void; 
+  handleFirestoreError: (error: any, operationType: any, path: string | null) => void; 
+}) {
+  const [tenantFeeVal, setTenantFeeVal] = useState<string>(String(currentTenantFee ?? 100));
+  const [userFeeVal, setUserFeeVal] = useState<string>(String(currentUserFee ?? 25));
+  const [isSaving, setIsSaving] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (currentTenantFee !== undefined && currentTenantFee !== null) {
+      setTenantFeeVal(String(currentTenantFee));
+    }
+  }, [currentTenantFee]);
+
+  useEffect(() => {
+    if (currentUserFee !== undefined && currentUserFee !== null) {
+      setUserFeeVal(String(currentUserFee));
+    }
+  }, [currentUserFee]);
+
+  const handleSave = async () => {
+    const tNum = Number(tenantFeeVal);
+    const uNum = Number(userFeeVal);
+
+    if (isNaN(tNum) || tNum < 10) {
+      alert("Please enter a valid Tenant Sub fee (minimum R10).");
+      return;
+    }
+    if (isNaN(uNum) || uNum < 1) {
+      alert("Please enter a valid User Sub fee (minimum R1).");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      await updateDoc(doc(db, 'users', userUid), {
+        tenantSubFee: tNum,
+        userSubFee: uNum,
+        updatedAt: serverTimestamp()
+      });
+      playSmoothReceiveSound();
+      setToast(`Monthly subscription fees updated! (Tenant Sub: R${tNum}, User Sub: R${uNum})`);
+      setTimeout(() => setToast(null), 4000);
+    } catch (err) {
+      console.warn("Failed to update tenant subscription fees:", err);
+      handleFirestoreError(err, OperationType.UPDATE, `users/${userUid}`);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <div className="bg-white/95 backdrop-blur-xl rounded-[1.5rem] p-4 shadow-xl border border-gray-200 text-left space-y-3 relative overflow-hidden transition-all">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-xl bg-black text-emerald-400 flex items-center justify-center shrink-0 font-black shadow-md">
+            <DollarSign className="w-4 h-4" />
+          </div>
+          <div>
+            <h4 className="font-black text-xs uppercase tracking-wider text-black">
+              Monthly Subscription Fees
+            </h4>
+            <p className="text-[10px] text-gray-500 font-medium">Set rates for Tenant Sub and User Sub referrals</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-300">
+            Tenant: R{currentTenantFee || 100}/mo
+          </span>
+          <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-blue-100 text-blue-900 border border-blue-300">
+            User: R{currentUserFee || 25}/mo
+          </span>
+        </div>
+      </div>
+
+      {toast && (
+        <div className="bg-emerald-50 border border-emerald-300 text-emerald-900 text-[11px] font-bold p-2.5 rounded-xl flex items-center gap-2 animate-in fade-in">
+          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+          <span>{toast}</span>
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 gap-3 pt-1">
+        {/* Tenant Sub Fee Input */}
+        <div className="bg-gray-50 p-2.5 rounded-xl border border-gray-200 space-y-1">
+          <label className="text-[9px] font-black text-black uppercase tracking-wider block">
+            Tenant Sub Fee
+          </label>
+          <div className="relative">
+            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-black text-black">R</span>
+            <input
+              type="number"
+              min="10"
+              max="10000"
+              value={tenantFeeVal}
+              onChange={(e) => setTenantFeeVal(e.target.value)}
+              placeholder="100"
+              className="w-full bg-white pl-6 pr-2 py-2 rounded-lg text-xs font-black text-black border border-gray-300 focus:border-black focus:bg-white outline-none transition-all shadow-inner"
+            />
+          </div>
+        </div>
+
+        {/* User Sub Fee Input */}
+        <div className="bg-gray-50 p-2.5 rounded-xl border border-gray-200 space-y-1">
+          <label className="text-[9px] font-black text-black uppercase tracking-wider block">
+            User Sub Fee
+          </label>
+          <div className="relative">
+            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-black text-black">R</span>
+            <input
+              type="number"
+              min="1"
+              max="10000"
+              value={userFeeVal}
+              onChange={(e) => setUserFeeVal(e.target.value)}
+              placeholder="25"
+              className="w-full bg-white pl-6 pr-2 py-2 rounded-lg text-xs font-black text-black border border-gray-300 focus:border-black focus:bg-white outline-none transition-all shadow-inner"
+            />
+          </div>
+        </div>
+      </div>
+
+      <button
+        onClick={handleSave}
+        disabled={isSaving}
+        className="w-full bg-black hover:bg-gray-800 text-white font-black text-xs py-2.5 rounded-xl shadow active:scale-95 transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 cursor-pointer"
+      >
+        {isSaving ? (
+          <RefreshCw className="w-3.5 h-3.5 animate-spin text-emerald-400" />
+        ) : (
+          <Check className="w-3.5 h-3.5 text-emerald-400" />
+        )}
+        <span>{isSaving ? 'Saving Fees...' : 'Save Subscription Fees'}</span>
+      </button>
+    </div>
+  );
+}
+
 const WORK_TRADES = [
   'Dog Walk', 'Security', 'General Laborer', 'Movers', 'Painting', 'Construction', 
   'Nanny', 'Gardening', 'Electrician', 'Plumbing', 'Cleaning', 'Handyman', 
@@ -816,15 +973,6 @@ export default function App() {
   }
 
   // Firestore Error Handling
-  enum OperationType {
-    CREATE = 'create',
-    UPDATE = 'update',
-    DELETE = 'delete',
-    LIST = 'list',
-    GET = 'get',
-    WRITE = 'write',
-  }
-
   const handleFirestoreError = (error: any, operationType: OperationType, path: string | null) => {
     const errMsg = (error instanceof Error ? error.message : String(error)).toLowerCase();
     if (errMsg.includes('offline') || errMsg.includes('unavailable') || errMsg.includes('timeout') || errMsg.includes('network') || errMsg.includes('failed to get document')) {
@@ -3319,6 +3467,17 @@ export default function App() {
                     </div>
                   );
                 })()}
+
+                {/* Tenant Monthly Subscription Fee Settings Box (Directly Under Total Profit Balance Box) */}
+                {user && userRole === 'Tenant' && (
+                  <TenantFeeManager
+                    currentTenantFee={profileData.tenantSubFee}
+                    currentUserFee={profileData.userSubFee}
+                    userUid={user.uid}
+                    playSmoothReceiveSound={playSmoothReceiveSound}
+                    handleFirestoreError={handleFirestoreError}
+                  />
+                )}
 
                 {/* Tenant Subscription Expiration Warning Alert */}
                 {userRole === 'Tenant' && (
