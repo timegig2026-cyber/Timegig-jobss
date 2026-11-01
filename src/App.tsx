@@ -7,7 +7,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, useMap, useMapEvents, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
-import { MapPin, Compass, Search, LocateFixed, Zap, X, Plus, Minus, Layers, Check, Camera, FileText, CreditCard, Clock, ChevronLeft, Upload, RefreshCw, Scan, LayoutGrid, Users, Trash2, User, Mail, Phone, Link2, Briefcase, Star, MapPinned, Lock, Unlock, Globe, Target, LogIn, LogOut, Maximize2, CheckCircle2, Sparkles, ShieldCheck, Gift, HelpCircle, Settings, Volume2, VolumeX, Bell, AlertTriangle, ShieldAlert, Crown, AlertCircle, Inbox, Archive, Send } from 'lucide-react';
+import { MapPin, Compass, Search, LocateFixed, Zap, X, Plus, Minus, Layers, Check, Camera, FileText, CreditCard, Clock, ChevronLeft, Upload, RefreshCw, Scan, LayoutGrid, Users, Trash2, User, Mail, Phone, Link2, Briefcase, Star, MapPinned, Lock, Unlock, Globe, Target, LogIn, LogOut, Maximize2, CheckCircle2, Sparkles, ShieldCheck, Gift, HelpCircle, Settings, Volume2, VolumeX, Bell, AlertTriangle, ShieldAlert, Crown, AlertCircle, Inbox, Archive, Send, Eye, EyeOff } from 'lucide-react';
 import * as faceapi from 'face-api.js';
 import { auth, db } from './lib/firebase';
 import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut, User as FirebaseUser, signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
@@ -463,13 +463,33 @@ export default function App() {
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
   const [referralView, setReferralView] = useState<Referral | null>(null);
   const [showReferralList, setShowReferralList] = useState(false);
-  const [stats, setStats] = useState({ tenantProfit: 0, userProfit: 0, totalReferrals: 0 });
+  const [stats, setStats] = useState({ 
+    tenantProfit: 0, 
+    userProfit: 0, 
+    totalReferrals: 0,
+    tenantSubFee: 100,
+    userSubFee: 25,
+    tenantSignupTarget: 50,
+    userSubSignupTarget: 200
+  });
+
+  // Active accepted gig for map destination navigation
+  const [activeAcceptedGig, setActiveAcceptedGig] = useState<{
+    id: string;
+    title: string;
+    location: [number, number];
+    budget?: number;
+    contact?: string;
+    ownerName?: string;
+    applicantName?: string;
+  } | null>(null);
 
   // Main Tenant Overseer State (timegig2026@gmail.com)
   const isMainTenant = Boolean(user?.email && user.email.trim().toLowerCase() === 'timegig2026@gmail.com');
   const [allTenants, setAllTenants] = useState<TenantAccount[]>([]);
   const [allUsersList, setAllUsersList] = useState<any[]>([]);
   const [overseerFilter, setOverseerFilter] = useState<'all' | 'delinquent' | 'warned' | 'frozen' | 'taken_over'>('all');
+  const [showOverseerCenter, setShowOverseerCenter] = useState(true);
   const [adminNotificationToast, setAdminNotificationToast] = useState<{ title: string; message: string } | null>(null);
   const previousDelinquentCountRef = useRef(0);
 
@@ -484,6 +504,9 @@ export default function App() {
   const [messages, setMessages] = useState<any[]>([]);
   const [promoSubject, setPromoSubject] = useState('');
   const [promoBody, setPromoBody] = useState('');
+  const [promoTargetType, setPromoTargetType] = useState<'all' | 'tenants' | 'users' | 'selected'>('all');
+  const [selectedPromoRecipientUids, setSelectedPromoRecipientUids] = useState<string[]>([]);
+  const [recipientSearchQuery, setRecipientSearchQuery] = useState('');
   const [isBroadcasting, setIsBroadcasting] = useState(false);
   const [promoSuccessToast, setPromoSuccessToast] = useState<string | null>(null);
   const [mainTenantInboxTab, setMainTenantInboxTab] = useState<'compose' | 'sent' | 'direct'>('compose');
@@ -1320,11 +1343,13 @@ export default function App() {
         gs.push({ id: doc.id, ...doc.data() });
       });
       setGigs(gs);
+    }, (err) => {
+      console.warn('Gigs snapshot listener notice:', err);
     });
     return () => unsubscribe();
   }, [playSmoothAlarmSound]);
 
-  // Listen for system stats
+  // Listen for system stats & signup targets
   useEffect(() => {
     if (!db || !user) return;
     const path = 'system/platform_stats';
@@ -1334,14 +1359,22 @@ export default function App() {
         setStats({
           tenantProfit: data.tenantProfit || 0,
           userProfit: data.userProfit || 0,
-          totalReferrals: data.totalReferrals || 0
+          totalReferrals: data.totalReferrals || 0,
+          tenantSubFee: data.tenantSubFee ?? 100,
+          userSubFee: data.userSubFee ?? 25,
+          tenantSignupTarget: data.tenantSignupTarget ?? 50,
+          userSubSignupTarget: data.userSubSignupTarget ?? 200
         });
       } else if (userRole === 'Tenant') {
         // Initialize stats if missing and user is Tenant
         setDoc(docSnapshot.ref, {
           tenantProfit: 0,
           userProfit: 0,
-          totalReferrals: 0
+          totalReferrals: 0,
+          tenantSubFee: 100,
+          userSubFee: 25,
+          tenantSignupTarget: 50,
+          userSubSignupTarget: 200
         }, { merge: true }).catch(e => console.warn('Init stats notice:', e));
       }
     }, (error) => {
@@ -1369,6 +1402,17 @@ export default function App() {
           const data = change.doc.data();
           if (data.senderId !== user.uid) {
             hasNewMessage = true;
+          }
+          if (data.type === 'gig_hired' && data.gigLocation) {
+            setPosition(data.gigLocation);
+            setActiveAcceptedGig({
+              id: data.gigId || '',
+              title: data.gigTitle || 'Gig Destination',
+              location: data.gigLocation,
+              budget: data.budget,
+              ownerName: data.senderName
+            });
+            setActiveTab('map');
           }
         }
       });
@@ -1941,7 +1985,7 @@ export default function App() {
     }
   };
 
-  // Main Tenant: Broadcast promotion message to every tenant and user on the app
+  // Main Tenant: Send promotion or direct message to selected audience
   const handleSendPromotion = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!promoSubject.trim() || !promoBody.trim() || !user || !isMainTenant) return;
@@ -1952,68 +1996,98 @@ export default function App() {
       const subject = promoSubject.trim();
       const body = promoBody.trim();
 
-      // Collect all unique tenant & user IDs across the platform
-      const targetUids = new Set<string>();
+      let targetCount = 0;
+      let label = 'All Tenants & Users';
 
-      // From locally loaded allUsersList
-      for (const u of allUsersList) {
-        if (u.uid && u.email?.trim().toLowerCase() !== 'timegig2026@gmail.com') {
-          targetUids.add(u.uid);
+      if (promoTargetType === 'all') {
+        // Create single global broadcast document ('recipientId: all')
+        await addDoc(collection(db, 'messages'), {
+          recipientId: 'all',
+          recipientName: 'All Tenants & Users',
+          senderId: user.uid,
+          senderEmail: 'timegig2026@gmail.com',
+          senderName: 'TimeGiG Main Administration',
+          subject,
+          body,
+          type: 'promotion',
+          isBroadcast: true,
+          isRead: false,
+          createdAt: serverTimestamp()
+        });
+        targetCount = allUsersList.length || 1;
+      } else if (promoTargetType === 'tenants') {
+        const tenantUids = allUsersList.filter(u => u.role === 'Tenant' && u.email?.toLowerCase() !== 'timegig2026@gmail.com').map(u => u.uid);
+        for (const tUid of tenantUids) {
+          await addDoc(collection(db, 'messages'), {
+            recipientId: tUid,
+            recipientName: 'Tenants Network',
+            senderId: user.uid,
+            senderEmail: 'timegig2026@gmail.com',
+            senderName: 'TimeGiG Main Administration',
+            subject,
+            body,
+            type: 'promotion',
+            isRead: false,
+            createdAt: serverTimestamp()
+          });
         }
+        targetCount = tenantUids.length;
+        label = `${targetCount} Tenant Accounts`;
+      } else if (promoTargetType === 'users') {
+        const userUids = allUsersList.filter(u => u.role !== 'Tenant' && u.email?.toLowerCase() !== 'timegig2026@gmail.com').map(u => u.uid);
+        for (const uUid of userUids) {
+          await addDoc(collection(db, 'messages'), {
+            recipientId: uUid,
+            recipientName: 'User Network',
+            senderId: user.uid,
+            senderEmail: 'timegig2026@gmail.com',
+            senderName: 'TimeGiG Main Administration',
+            subject,
+            body,
+            type: 'promotion',
+            isRead: false,
+            createdAt: serverTimestamp()
+          });
+        }
+        targetCount = userUids.length;
+        label = `${targetCount} User Accounts`;
+      } else if (promoTargetType === 'selected') {
+        if (selectedPromoRecipientUids.length === 0) {
+          setError('Please select at least one recipient from the list.');
+          setIsBroadcasting(false);
+          return;
+        }
+        for (const targetUid of selectedPromoRecipientUids) {
+          const matchedUser = allUsersList.find(u => u.uid === targetUid);
+          const recipientName = matchedUser ? `${matchedUser.name || ''} ${matchedUser.surname || ''}`.trim() || matchedUser.email : 'Selected Member';
+          await addDoc(collection(db, 'messages'), {
+            recipientId: targetUid,
+            recipientName,
+            senderId: user.uid,
+            senderEmail: 'timegig2026@gmail.com',
+            senderName: 'TimeGiG Main Administration',
+            subject,
+            body,
+            type: 'promotion',
+            isRead: false,
+            createdAt: serverTimestamp()
+          });
+        }
+        targetCount = selectedPromoRecipientUids.length;
+        label = `${targetCount} Selected Recipient${targetCount === 1 ? '' : 's'}`;
       }
-
-      // Query users collection directly to ensure complete coverage
-      try {
-        const usersSnap = await getDocs(collection(db, 'users'));
-        usersSnap.forEach((docSnap) => {
-          const data = docSnap.data();
-          if (docSnap.id && data.email?.trim().toLowerCase() !== 'timegig2026@gmail.com') {
-            targetUids.add(docSnap.id);
-          }
-        });
-      } catch (err) {
-        console.warn('Query users for promo notice:', err);
-      }
-
-      // Query verifications collection to reach any applicants
-      try {
-        const verifsSnap = await getDocs(collection(db, 'verifications'));
-        verifsSnap.forEach((docSnap) => {
-          const data = docSnap.data();
-          if (data.userId && data.userId !== user.uid) {
-            targetUids.add(data.userId);
-          }
-        });
-      } catch (err) {
-        console.warn('Query verifications for promo notice:', err);
-      }
-
-      // Create single global broadcast document ('recipientId: all')
-      // All tenants and users listening via query where('recipientId', 'in', [user.uid, 'all']) receive this instantly
-      await addDoc(collection(db, 'messages'), {
-        recipientId: 'all',
-        recipientName: 'All Tenants & Users',
-        senderId: user.uid,
-        senderEmail: 'timegig2026@gmail.com',
-        senderName: 'TimeGiG Main Administration',
-        subject,
-        body,
-        type: 'promotion',
-        isBroadcast: true,
-        isRead: false,
-        createdAt: serverTimestamp()
-      });
 
       playSmoothReceiveSound();
       setPromoSubject('');
       setPromoBody('');
+      setSelectedPromoRecipientUids([]);
       setPromoSuccessToast(
-        `🎉 Promotion broadcast successfully sent to all registered tenants and users!`
+        `🎉 Message successfully sent to ${label}!`
       );
       setMainTenantInboxTab('sent');
     } catch (err: any) {
       console.warn('Send promotion error:', err);
-      setError(err?.message || 'Failed to send promotion to tenants and users.');
+      setError(err?.message || 'Failed to send message to selected recipients.');
     } finally {
       setIsBroadcasting(false);
     }
@@ -2105,6 +2179,43 @@ export default function App() {
             </div>
           )}
 
+          {/* Active Accepted Gig Navigation Overlay Banner */}
+          {activeAcceptedGig && (
+            <div className="pointer-events-auto mx-auto max-w-md w-full bg-black text-white p-3.5 px-5 rounded-2xl shadow-2xl border border-emerald-400/60 flex items-center justify-between gap-3 animate-in slide-in-from-top-4 duration-300">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-emerald-500 text-white flex items-center justify-center shrink-0 shadow-md">
+                  <MapPin className="w-5 h-5 animate-bounce" />
+                </div>
+                <div className="text-left">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-emerald-500 text-white">Active Hired Gig</span>
+                    {activeAcceptedGig.budget && <span className="text-xs font-black text-emerald-400">R{activeAcceptedGig.budget}</span>}
+                  </div>
+                  <h4 className="font-black text-xs text-white truncate max-w-[180px] mt-0.5">{activeAcceptedGig.title}</h4>
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button
+                  onClick={() => {
+                    if (activeAcceptedGig.location) {
+                      setPosition(activeAcceptedGig.location);
+                    }
+                  }}
+                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[10px] uppercase tracking-wider rounded-xl shadow active:scale-95 transition-all flex items-center gap-1"
+                >
+                  <Compass className="w-3 h-3" /> Fly To
+                </button>
+                <button
+                  onClick={() => setActiveAcceptedGig(null)}
+                  className="p-1.5 bg-white/10 hover:bg-white/20 text-gray-300 hover:text-white rounded-xl"
+                  title="Dismiss Banner"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
+
           {(inviterId || localStorage.getItem('timegig_ref')) && (
             <button 
               onClick={() => setShowWelcomeModal(true)}
@@ -2119,8 +2230,8 @@ export default function App() {
 
       {/* Content Area */}
       <div className="flex-1 relative overflow-hidden">
-        {/* Map View */}
-        <div className={`absolute inset-0 transition-opacity duration-300 ${activeTab === 'map' ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'}`}>
+        {/* Map View Background Wallpaper */}
+        <div className={`absolute inset-0 transition-opacity duration-300 ${activeTab === 'map' ? 'z-10' : 'z-0'}`}>
           <MapContainer
             center={position || [0, 0]}
             zoom={position ? 15 : 2}
@@ -2177,6 +2288,39 @@ export default function App() {
             {showGigForm && <MapClickHandler setLocation={setSelectedGigLocation} setIsSelectingLocation={setIsSelectingLocation} setShowGigForm={setShowGigForm} />}
             {isSelectingLocation && <MapClickHandler setLocation={setSelectedGigLocation} setIsSelectingLocation={setIsSelectingLocation} setShowGigForm={setShowGigForm} />}
             {selectedGigLocation && <Marker position={selectedGigLocation} />}
+
+            {/* Active Accepted Gig Destination Marker */}
+            {activeAcceptedGig && activeAcceptedGig.location && (
+              <Marker
+                position={activeAcceptedGig.location}
+                icon={L.divIcon({
+                  className: 'bg-transparent',
+                  html: `
+                    <div class="relative w-12 h-12 rounded-full border-4 border-emerald-400 bg-black shadow-2xl flex items-center justify-center ring-4 ring-emerald-300/50 animate-bounce">
+                      <div class="w-4 h-4 rounded-full bg-emerald-400"></div>
+                    </div>
+                  `,
+                  iconSize: [48, 48],
+                  iconAnchor: [24, 24]
+                })}
+              >
+                <Popup className="rounded-2xl shadow-xl">
+                  <div className="p-3 text-center space-y-2">
+                    <span className="bg-emerald-500 text-white font-black text-[9px] uppercase px-2.5 py-1 rounded-full">Gig Destination</span>
+                    <h3 className="font-black text-base text-black mt-1">{activeAcceptedGig.title}</h3>
+                    {activeAcceptedGig.budget && <p className="text-xs font-black text-emerald-600">Budget: R{activeAcceptedGig.budget}</p>}
+                    <button
+                      onClick={() => {
+                        setPosition(activeAcceptedGig.location);
+                      }}
+                      className="w-full py-2 bg-black text-white font-black text-xs rounded-xl uppercase tracking-wider"
+                    >
+                      Navigate Map Here
+                    </button>
+                  </div>
+                </Popup>
+              </Marker>
+            )}
             {gigs.map(gig => (
               <Marker 
                 key={gig.id} 
@@ -2211,7 +2355,7 @@ export default function App() {
         </div>
 
         {/* Activation View */}
-        <div className={`absolute inset-0 bg-gray-50 z-20 transition-transform duration-300 flex flex-col p-4 pt-6 ${activeTab === 'activation' ? 'translate-y-0' : 'translate-y-full'}`}>
+        <div className={`absolute inset-0 bg-gray-50/80 backdrop-blur-xl z-20 transition-transform duration-300 flex flex-col p-4 pt-6 ${activeTab === 'activation' ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0 pointer-events-none'}`}>
           <div className="max-w-md mx-auto w-full flex-1 flex flex-col gap-6 overflow-y-auto pb-10 no-scrollbar">
             {verificationStep === null ? (
               <>
@@ -2455,7 +2599,7 @@ export default function App() {
         </div>
 
         {/* Tenant Dashboard View */}
-        <div className={`absolute inset-0 bg-gray-50 z-30 transition-transform duration-300 flex flex-col overflow-hidden ${activeTab === 'tenant' ? 'translate-y-0' : 'translate-y-full'}`}>
+        <div className={`absolute inset-0 bg-gray-50/80 backdrop-blur-xl z-30 transition-transform duration-300 flex flex-col overflow-hidden ${activeTab === 'tenant' ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0 pointer-events-none'}`}>
           <div className="flex-1 flex flex-col p-6 pt-12 overflow-y-auto no-scrollbar">
             {!showReferralList ? (
               <div className="max-w-md mx-auto w-full space-y-6 pb-20">
@@ -2576,7 +2720,7 @@ export default function App() {
 
                 {/* Root Overseer Center for Main Tenant timegig2026@gmail.com */}
                 {isMainTenant && (
-                  <div className="bg-white rounded-[2rem] p-6 shadow-sm border border-gray-100 space-y-5">
+                  <div className="bg-white/90 backdrop-blur-xl rounded-[2rem] p-6 shadow-md border border-gray-100 space-y-5 transition-all">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-2xl bg-black text-white flex items-center justify-center shadow-md">
@@ -2590,16 +2734,32 @@ export default function App() {
                           <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">timegig2026@gmail.com</p>
                         </div>
                       </div>
-                      {delinquentTenants.length > 0 ? (
-                        <span className="bg-red-500 text-white text-[10px] font-black px-2.5 py-1 rounded-full uppercase tracking-wider animate-pulse flex items-center gap-1 shadow-sm">
-                          <AlertTriangle className="w-3 h-3" /> {delinquentTenants.length} Alert{delinquentTenants.length === 1 ? '' : 's'}
-                        </span>
-                      ) : (
-                        <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-black px-2.5 py-1 rounded-full uppercase tracking-wider flex items-center gap-1">
-                          <CheckCircle2 className="w-3 h-3 text-emerald-600" /> All Managed
-                        </span>
-                      )}
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setShowOverseerCenter(!showOverseerCenter)}
+                          className="flex items-center gap-1 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-black rounded-xl text-[10px] font-black uppercase tracking-wider transition-all active:scale-95"
+                          title={showOverseerCenter ? 'Hide Overseer Center' : 'Unhide Overseer Center'}
+                        >
+                          {showOverseerCenter ? (
+                            <><EyeOff className="w-3.5 h-3.5" /> Hide</>
+                          ) : (
+                            <><Eye className="w-3.5 h-3.5" /> Unhide</>
+                          )}
+                        </button>
+                        {delinquentTenants.length > 0 ? (
+                          <span className="bg-red-500 text-white text-[10px] font-black px-2.5 py-1 rounded-full uppercase tracking-wider animate-pulse flex items-center gap-1 shadow-sm">
+                            <AlertTriangle className="w-3 h-3" /> {delinquentTenants.length}
+                          </span>
+                        ) : (
+                          <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-black px-2.5 py-1 rounded-full uppercase tracking-wider flex items-center gap-1">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Managed
+                          </span>
+                        )}
+                      </div>
                     </div>
+
+                    {showOverseerCenter && (
+                      <div className="space-y-5 animate-in fade-in duration-200">
 
                     {delinquentTenants.length > 0 && (
                       <div className="bg-red-50 border border-red-200 rounded-2xl p-4 text-left space-y-1">
@@ -2612,6 +2772,121 @@ export default function App() {
                         </p>
                       </div>
                     )}
+
+                    {/* Main Tenant Signup Target & Subscription Fee Configuration Box */}
+                    <div className="bg-gray-50 border border-gray-200 rounded-2xl p-4 space-y-4 text-left">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Target className="w-4 h-4 text-black" />
+                          <h4 className="font-black text-xs uppercase tracking-wider text-black">
+                            Signup Targets & Subscription Fees
+                          </h4>
+                        </div>
+                        <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-100 text-amber-900">
+                          Main Tenant Control
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        {/* Tenant Signup Target & Fee */}
+                        <div className="bg-white p-3 rounded-xl border border-gray-100 space-y-2">
+                          <span className="text-[9px] font-black text-gray-500 uppercase tracking-wider block">
+                            Tenant Signups Target
+                          </span>
+                          <div className="flex items-center gap-1">
+                            <input
+                              type="number"
+                              min="1"
+                              value={stats.tenantSignupTarget}
+                              onChange={(e) => setStats(prev => ({ ...prev, tenantSignupTarget: Number(e.target.value) }))}
+                              className="w-full bg-gray-50 p-2 rounded-lg text-xs font-black border border-gray-200 focus:border-black outline-none"
+                            />
+                            <span className="text-[10px] text-gray-400 font-bold">Goal</span>
+                          </div>
+                          <div className="space-y-1">
+                            <div className="flex justify-between text-[9px] font-bold text-gray-500">
+                              <span>Active: {allTenants.length}</span>
+                              <span>{Math.min(100, Math.round((allTenants.length / (stats.tenantSignupTarget || 1)) * 100))}%</span>
+                            </div>
+                            <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                              <div 
+                                className="h-full bg-emerald-500 rounded-full transition-all duration-500" 
+                                style={{ width: `${Math.min(100, (allTenants.length / (stats.tenantSignupTarget || 1)) * 100)}%` }} 
+                              />
+                            </div>
+                          </div>
+                          <div className="pt-1 border-t border-gray-100">
+                            <label className="text-[8px] font-black text-gray-400 uppercase block mb-0.5">Tenant Sub Fee (R)</label>
+                            <input
+                              type="number"
+                              value={stats.tenantSubFee}
+                              onChange={(e) => setStats(prev => ({ ...prev, tenantSubFee: Number(e.target.value) }))}
+                              className="w-full bg-gray-50 p-1.5 rounded-lg text-xs font-black text-emerald-600 border border-gray-200 focus:border-black outline-none"
+                            />
+                          </div>
+                        </div>
+
+                        {/* User Sub Signup Target & Fee */}
+                        <div className="bg-white p-3 rounded-xl border border-gray-100 space-y-2">
+                          <span className="text-[9px] font-black text-gray-500 uppercase tracking-wider block">
+                            User Sub Signups Target
+                          </span>
+                          <div className="flex items-center gap-1">
+                            <input
+                              type="number"
+                              min="1"
+                              value={stats.userSubSignupTarget}
+                              onChange={(e) => setStats(prev => ({ ...prev, userSubSignupTarget: Number(e.target.value) }))}
+                              className="w-full bg-gray-50 p-2 rounded-lg text-xs font-black border border-gray-200 focus:border-black outline-none"
+                            />
+                            <span className="text-[10px] text-gray-400 font-bold">Goal</span>
+                          </div>
+                          <div className="space-y-1">
+                            <div className="flex justify-between text-[9px] font-bold text-gray-500">
+                              <span>Users: {allUsersList.length}</span>
+                              <span>{Math.min(100, Math.round((allUsersList.length / (stats.userSubSignupTarget || 1)) * 100))}%</span>
+                            </div>
+                            <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                              <div 
+                                className="h-full bg-blue-500 rounded-full transition-all duration-500" 
+                                style={{ width: `${Math.min(100, (allUsersList.length / (stats.userSubSignupTarget || 1)) * 100)}%` }} 
+                              />
+                            </div>
+                          </div>
+                          <div className="pt-1 border-t border-gray-100">
+                            <label className="text-[8px] font-black text-gray-400 uppercase block mb-0.5">User Sub Fee (R)</label>
+                            <input
+                              type="number"
+                              value={stats.userSubFee}
+                              onChange={(e) => setStats(prev => ({ ...prev, userSubFee: Number(e.target.value) }))}
+                              className="w-full bg-gray-50 p-1.5 rounded-lg text-xs font-black text-blue-600 border border-gray-200 focus:border-black outline-none"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={async () => {
+                          try {
+                            await setDoc(doc(db, 'system', 'platform_stats'), {
+                              tenantSignupTarget: stats.tenantSignupTarget,
+                              userSubSignupTarget: stats.userSubSignupTarget,
+                              tenantSubFee: stats.tenantSubFee,
+                              userSubFee: stats.userSubFee,
+                              updatedAt: serverTimestamp()
+                            }, { merge: true });
+                            playSmoothReceiveSound();
+                            alert('✅ Platform signup targets and subscription fees updated successfully!');
+                          } catch (e) {
+                            console.warn('Update targets notice:', e);
+                            setError('Failed to update signup targets.');
+                          }
+                        }}
+                        className="w-full py-3 bg-black hover:bg-gray-900 text-white font-black text-xs rounded-xl uppercase tracking-wider shadow active:scale-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                      >
+                        <CheckCircle2 className="w-4 h-4 text-emerald-400" /> Save Signup Targets & Fees
+                      </button>
+                    </div>
 
                     {/* Quick Promotion Broadcast Action */}
                     <button
@@ -2810,6 +3085,8 @@ export default function App() {
                     </div>
                   </div>
                 )}
+              </div>
+            )}
 
                 {/* Referral Link Section */}
                 <div className="bg-white rounded-[2rem] p-6 shadow-sm border border-gray-100 space-y-4">
@@ -3126,7 +3403,7 @@ export default function App() {
         </div>
 
         {/* Profile View */}
-        <div className={`absolute inset-0 bg-gray-50 z-40 transition-transform duration-300 flex flex-col overflow-hidden ${activeTab === 'profile' ? 'translate-y-0' : 'translate-y-full'}`}>
+        <div className={`absolute inset-0 bg-gray-50/80 backdrop-blur-xl z-40 transition-transform duration-300 flex flex-col overflow-hidden ${activeTab === 'profile' ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0 pointer-events-none'}`}>
           <div className="flex-1 flex flex-col overflow-y-auto no-scrollbar pb-20">
             {/* Profile Header */}
             <div className="bg-black text-white p-8 pt-24 rounded-b-[3rem] relative overflow-visible">
@@ -3727,6 +4004,177 @@ export default function App() {
                     )}
                   </div>
 
+                  {/* Target Audience Selection */}
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-wider block">
+                      Select Inbox Audience <span className="text-amber-500">*</span>
+                    </label>
+                    <div className="grid grid-cols-2 gap-2 text-[10px] font-black uppercase tracking-wider">
+                      <button
+                        type="button"
+                        onClick={() => setPromoTargetType('all')}
+                        className={`p-3 rounded-2xl border text-left transition-all flex items-center justify-between ${
+                          promoTargetType === 'all'
+                            ? 'bg-black text-white border-black shadow-md'
+                            : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'
+                        }`}
+                      >
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <Globe className="w-3.5 h-3.5 text-amber-400" />
+                            <span>All Accounts</span>
+                          </div>
+                          <span className="text-[8px] font-bold text-gray-400 block mt-0.5">Broadcast Everyone</span>
+                        </div>
+                        {promoTargetType === 'all' && <Check className="w-4 h-4 text-emerald-400" />}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setPromoTargetType('tenants')}
+                        className={`p-3 rounded-2xl border text-left transition-all flex items-center justify-between ${
+                          promoTargetType === 'tenants'
+                            ? 'bg-black text-white border-black shadow-md'
+                            : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'
+                        }`}
+                      >
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <Crown className="w-3.5 h-3.5 text-emerald-400" />
+                            <span>Tenants Only</span>
+                          </div>
+                          <span className="text-[8px] font-bold text-gray-400 block mt-0.5">{allTenants.length} Tenants</span>
+                        </div>
+                        {promoTargetType === 'tenants' && <Check className="w-4 h-4 text-emerald-400" />}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setPromoTargetType('users')}
+                        className={`p-3 rounded-2xl border text-left transition-all flex items-center justify-between ${
+                          promoTargetType === 'users'
+                            ? 'bg-black text-white border-black shadow-md'
+                            : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'
+                        }`}
+                      >
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <Users className="w-3.5 h-3.5 text-blue-400" />
+                            <span>Users / Seekers</span>
+                          </div>
+                          <span className="text-[8px] font-bold text-gray-400 block mt-0.5">All Seekers</span>
+                        </div>
+                        {promoTargetType === 'users' && <Check className="w-4 h-4 text-emerald-400" />}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setPromoTargetType('selected')}
+                        className={`p-3 rounded-2xl border text-left transition-all flex items-center justify-between ${
+                          promoTargetType === 'selected'
+                            ? 'bg-black text-white border-black shadow-md'
+                            : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'
+                        }`}
+                      >
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <Target className="w-3.5 h-3.5 text-amber-400" />
+                            <span>Select People</span>
+                          </div>
+                          <span className="text-[8px] font-bold text-gray-400 block mt-0.5">
+                            {selectedPromoRecipientUids.length > 0 ? `${selectedPromoRecipientUids.length} Chosen` : 'Pick Specific'}
+                          </span>
+                        </div>
+                        {promoTargetType === 'selected' && <Check className="w-4 h-4 text-emerald-400" />}
+                      </button>
+                    </div>
+
+                    {/* If Target is 'selected', render multi-select recipient list */}
+                    {promoTargetType === 'selected' && (
+                      <div className="p-3 bg-gray-50 border border-gray-200 rounded-2xl space-y-3 animate-in fade-in duration-200">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-black uppercase tracking-wider text-black">
+                            Pick Recipients ({selectedPromoRecipientUids.length} Selected)
+                          </span>
+                          {selectedPromoRecipientUids.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => setSelectedPromoRecipientUids([])}
+                              className="text-[9px] font-black uppercase text-gray-400 hover:text-red-500"
+                            >
+                              Clear Selection
+                            </button>
+                          )}
+                        </div>
+
+                        <div className="relative">
+                          <Search className="w-3.5 h-3.5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                          <input
+                            type="text"
+                            placeholder="Search by name, email, or role..."
+                            value={recipientSearchQuery}
+                            onChange={e => setRecipientSearchQuery(e.target.value)}
+                            className="w-full pl-9 pr-3 py-2 bg-white border border-gray-200 rounded-xl text-xs font-bold outline-none focus:border-black"
+                          />
+                        </div>
+
+                        <div className="max-h-48 overflow-y-auto space-y-1.5 no-scrollbar pr-1">
+                          {allUsersList
+                            .filter(u => u.uid && u.email?.toLowerCase() !== 'timegig2026@gmail.com')
+                            .filter(u => {
+                              if (!recipientSearchQuery.trim()) return true;
+                              const q = recipientSearchQuery.toLowerCase();
+                              const name = `${u.name || ''} ${u.surname || ''}`.toLowerCase();
+                              const email = (u.email || '').toLowerCase();
+                              const role = (u.role || '').toLowerCase();
+                              return name.includes(q) || email.includes(q) || role.includes(q);
+                            })
+                            .map(u => {
+                              const isChecked = selectedPromoRecipientUids.includes(u.uid);
+                              return (
+                                <div
+                                  key={u.uid}
+                                  onClick={() => {
+                                    if (isChecked) {
+                                      setSelectedPromoRecipientUids(prev => prev.filter(id => id !== u.uid));
+                                    } else {
+                                      setSelectedPromoRecipientUids(prev => [...prev, u.uid]);
+                                    }
+                                  }}
+                                  className={`p-2.5 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${
+                                    isChecked
+                                      ? 'bg-black text-white border-black'
+                                      : 'bg-white text-black border-gray-100 hover:border-gray-200'
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-2.5 truncate">
+                                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center font-black text-xs ${
+                                      u.role === 'Tenant' ? 'bg-emerald-500 text-white' : 'bg-blue-500 text-white'
+                                    }`}>
+                                      {u.role === 'Tenant' ? 'T' : 'U'}
+                                    </div>
+                                    <div className="truncate">
+                                      <div className="font-black text-xs truncate">
+                                        {u.name || u.surname ? `${u.name || ''} ${u.surname || ''}`.trim() : 'Registered Member'}
+                                      </div>
+                                      <div className={`text-[9px] truncate ${isChecked ? 'text-gray-300' : 'text-gray-400'}`}>
+                                        {u.email}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <div className={`w-5 h-5 rounded-md border flex items-center justify-center shrink-0 ${
+                                    isChecked ? 'bg-emerald-500 border-emerald-400 text-white' : 'border-gray-300 bg-gray-50'
+                                  }`}>
+                                    {isChecked && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
                   {/* Subject Input */}
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-black text-gray-500 uppercase tracking-wider block">
@@ -3958,13 +4406,16 @@ export default function App() {
                                 <span>Application Declined</span>
                                 <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-red-100 text-red-800">Declined</span>
                               </div>
-                            ) : (
+                             ) : (
                               <div className="flex items-center gap-2">
                                 <button
                                   onClick={async () => {
                                     try {
+                                      const targetGig = gigs.find(g => g.id === msg.gigId);
+                                      const gigLoc = targetGig?.location || msg.gigLocation || position;
+
                                       if (msg.appId) {
-                                        await updateDoc(doc(db, 'applications', msg.appId), { status: 'accepted' });
+                                        await updateDoc(doc(db, 'applications', msg.appId), { status: 'accepted', gigLocation: gigLoc });
                                       }
                                       await updateDoc(doc(db, 'messages', msg.id), { applicationStatus: 'accepted', isRead: true });
 
@@ -3975,14 +4426,33 @@ export default function App() {
                                           senderEmail: profileData.email || user!.email || '',
                                           senderName: profileData.name ? `${profileData.name} ${profileData.surname}` : 'Gig Owner',
                                           subject: `🎉 YOU ARE HIRED! Application Accepted for "${msg.gigTitle || 'Gig'}"`,
-                                          body: `Congratulations! Your application for "${msg.gigTitle || 'Gig'}" was ACCEPTED and you have been HIRED!\n\nContact the owner at ${profileData.contact || user!.email} to coordinate work details.`,
+                                          body: `Congratulations! Your application for "${msg.gigTitle || 'Gig'}" was ACCEPTED and you have been HIRED!\n\nContact the owner at ${profileData.contact || user!.email} to coordinate work details. Map navigated to destination.`,
                                           type: 'gig_hired',
+                                          gigId: msg.gigId || '',
+                                          gigTitle: msg.gigTitle || 'Gig',
+                                          gigLocation: gigLoc || null,
+                                          budget: msg.budget || 0,
                                           isRead: false,
                                           createdAt: serverTimestamp()
                                         });
                                       }
+
                                       playSmoothReceiveSound();
-                                      alert(`🎉 You have HIRED ${msg.applicantName || 'the applicant'}! A confirmation message has been sent to their inbox.`);
+
+                                      if (gigLoc) {
+                                        setPosition(gigLoc);
+                                        setActiveAcceptedGig({
+                                          id: msg.gigId || '',
+                                          title: msg.gigTitle || 'Gig Destination',
+                                          location: gigLoc,
+                                          budget: msg.budget,
+                                          applicantName: msg.applicantName
+                                        });
+                                      }
+
+                                      setActiveTab('map');
+                                      setShowInbox(false);
+                                      alert(`🎉 You have HIRED ${msg.applicantName || 'the applicant'}! Map navigated to gig destination.`);
                                     } catch (e) {
                                       console.warn('Accept application error:', e);
                                       setError('Failed to hire applicant.');
@@ -4577,6 +5047,7 @@ export default function App() {
                     appId: appId,
                     gigId: selectedGigView.id,
                     gigTitle: selectedGigView.description,
+                    gigLocation: selectedGigView.location || null,
                     applicantUid: user.uid,
                     applicantName: applicantName,
                     applicantContact: profileData.contact || '',
@@ -4605,14 +5076,26 @@ export default function App() {
                     unsubscribe();
                     setIsApplying(false);
                     setSelectedGigView(null);
-                    setPosition(selectedGigView.location); // Navigate to location
-                    alert('🎉 Congratulations! You were HIRED by the gig owner!');
+                    if (selectedGigView.location) {
+                      setPosition(selectedGigView.location); // Navigate to location
+                      setActiveAcceptedGig({
+                        id: selectedGigView.id,
+                        title: selectedGigView.description || 'Gig Destination',
+                        location: selectedGigView.location,
+                        budget: selectedGigView.budget,
+                        ownerName: selectedGigView.contactNumber
+                      });
+                    }
+                    setActiveTab('map');
+                    alert('🎉 Congratulations! You were HIRED by the gig owner! Map navigated to gig destination.');
                   } else if (data?.status === 'rejected') {
                     clearTimeout(timeout);
                     unsubscribe();
                     setIsApplying(false);
                     alert('Application update: The owner declined this application.');
                   }
+                }, (err) => {
+                  console.warn('Application snapshot notice:', err);
                 });
               }}
               className="w-full py-4 bg-black text-white font-bold rounded-2xl mb-4 disabled:opacity-50 active:scale-98 transition-all"
