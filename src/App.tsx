@@ -495,8 +495,8 @@ export default function App() {
     totalReferrals: 0,
     tenantSubFee: 100,
     userSubFee: 25,
-    tenantSignupTarget: 50,
-    userSubSignupTarget: 200
+    tenantSignupTarget: 10,
+    userSubSignupTarget: 100
   });
 
   // Active accepted gig for map destination navigation
@@ -3275,6 +3275,11 @@ export default function App() {
                   const userSubTotal = profileData.userSubProfit || (profileData.userProfit || 0);
                   const totalProfitBalance = tenantSubTotal + userSubTotal;
 
+                  const tenantTarget = isMainTenant ? (stats.tenantSignupTarget || 10) : 10;
+                  const userSubTarget = isMainTenant ? (stats.userSubSignupTarget || 100) : 100;
+                  const isTenantCapReached = !isMainTenant && refTenantsCount >= tenantTarget;
+                  const isUserCapReached = !isMainTenant && refUsersCount >= userSubTarget;
+
                   return (
                     <div className="bg-black rounded-[1.5rem] p-5 shadow-xl relative overflow-hidden group border border-white/10 space-y-4">
                       <div className="absolute top-0 right-0 p-4 opacity-10">
@@ -3296,15 +3301,19 @@ export default function App() {
                       </div>
 
                       <div className="grid grid-cols-2 gap-2.5 relative z-10">
-                        <div className="rounded-xl p-3 border border-white/10 bg-white/5 text-left space-y-1">
-                          <span className="text-gray-400 text-[8px] font-black uppercase tracking-wider block">Tenant Sub Payments</span>
+                        <div className={`rounded-xl p-3 border text-left space-y-1 ${isTenantCapReached ? 'bg-red-500/20 border-red-500/50' : 'border-white/10 bg-white/5'}`}>
+                          <span className="text-gray-400 text-[8px] font-black uppercase tracking-wider block">Tenant Sub Payments (Max 10)</span>
                           <div className="text-base font-black text-emerald-400">R{tenantSubTotal}</div>
-                          <span className="text-[9px] text-gray-400 font-semibold block">{refTenantsCount} / {stats.tenantSignupTarget} Tenants</span>
+                          <span className={`text-[9px] font-semibold block ${isTenantCapReached ? 'text-red-400 font-black' : 'text-gray-400'}`}>
+                            {refTenantsCount} / {tenantTarget} Tenants {isTenantCapReached ? '(Cap Reached)' : ''}
+                          </span>
                         </div>
-                        <div className="rounded-xl p-3 border border-white/10 bg-white/5 text-left space-y-1">
-                          <span className="text-gray-400 text-[8px] font-black uppercase tracking-wider block">User Sub Payments</span>
+                        <div className={`rounded-xl p-3 border text-left space-y-1 ${isUserCapReached ? 'bg-red-500/20 border-red-500/50' : 'border-white/10 bg-white/5'}`}>
+                          <span className="text-gray-400 text-[8px] font-black uppercase tracking-wider block">User Sub Payments (Max 100)</span>
                           <div className="text-base font-black text-blue-400">R{userSubTotal}</div>
-                          <span className="text-[9px] text-gray-400 font-semibold block">{refUsersCount} / {stats.userSubSignupTarget} Users</span>
+                          <span className={`text-[9px] font-semibold block ${isUserCapReached ? 'text-red-400 font-black' : 'text-gray-400'}`}>
+                            {refUsersCount} / {userSubTarget} Users {isUserCapReached ? '(Cap Reached)' : ''}
+                          </span>
                         </div>
                       </div>
                     </div>
