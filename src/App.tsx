@@ -2549,7 +2549,7 @@ export default function App() {
                 className="w-10 h-10 rounded-full overflow-hidden border border-gray-100 shadow-sm ml-1 hover:scale-105 transition-all"
                 title="Profile"
               >
-                {selfieImage ? (
+                {(selfieImage && selfieImage !== "") ? (
                   <img src={selfieImage} alt="Profile" className="w-full h-full object-cover" />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center bg-gray-100 text-gray-400">
@@ -2886,7 +2886,7 @@ export default function App() {
                     <div className="p-3 space-y-2 text-left max-w-[240px]">
                       <div className="flex items-center gap-2.5 border-b border-gray-100 pb-2">
                         <div className="w-10 h-10 rounded-xl overflow-hidden bg-gray-100 border border-gray-200 shrink-0">
-                          {seeker.photoURL ? (
+                          {(seeker.photoURL && seeker.photoURL !== "") ? (
                             <img src={seeker.photoURL} alt={seeker.name} className="w-full h-full object-cover" />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center font-black text-gray-500">
@@ -3015,7 +3015,7 @@ export default function App() {
                       <h3 className="text-xl font-black text-black mb-1">Selfie Verification</h3>
                       <p className="text-gray-500 text-xs mb-6 leading-relaxed">Position your face in the frame and capture a clear selfie.</p>
                       <div className="w-full flex-1 flex flex-col mb-6 overflow-hidden">
-                        {selfieImage ? (
+                        {(selfieImage && selfieImage !== "") ? (
                           <div className="relative flex-1 rounded-3xl overflow-hidden border-2 border-gray-100 shadow-sm animate-in fade-in zoom-in duration-300">
                             <img src={selfieImage} alt="Selfie preview" className="w-full h-full object-cover" />
                             <div className="absolute top-4 right-4">
@@ -3105,7 +3105,7 @@ export default function App() {
                             reader.readAsDataURL(file);
                           }
                         }} />
-                        {idDocument ? (
+                        {(idDocument && idDocument !== "") ? (
                           <img src={idDocument} className="w-full h-full object-cover" alt="ID Preview" />
                         ) : (
                           <>
@@ -3144,7 +3144,7 @@ export default function App() {
                               reader.readAsDataURL(file);
                             }
                           }} />
-                          {popDocument ? (
+                          {(popDocument && popDocument !== "") ? (
                             <img src={popDocument} className="w-full h-full object-cover" alt="POP Preview" />
                           ) : (
                             <>
@@ -3789,7 +3789,7 @@ export default function App() {
                       className="relative group cursor-pointer shrink-0"
                       title="Click to view full screen"
                     >
-                      <img src={referralView.selfie} className="w-20 h-20 rounded-2xl object-cover shadow-lg border-2 border-white group-hover:scale-105 transition-transform" alt="Selfie" />
+                      {referralView.selfie && <img src={referralView.selfie} className="w-20 h-20 rounded-2xl object-cover shadow-lg border-2 border-white group-hover:scale-105 transition-transform" alt="Selfie" />}
                       <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 rounded-2xl flex items-center justify-center transition-opacity text-white">
                         <Maximize2 className="w-5 h-5" />
                       </div>
@@ -3832,7 +3832,7 @@ export default function App() {
                         onClick={() => setFullScreenImage({ url: referralView.idDoc, title: 'ID / Passport Document', subtitle: referralView.name })}
                         className="aspect-[4/3] rounded-2xl overflow-hidden border border-gray-100 bg-gray-50 cursor-pointer relative group shadow-sm hover:shadow-md transition-all"
                       >
-                        <img src={referralView.idDoc} className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform" alt="ID Doc" />
+                        {referralView.idDoc && <img src={referralView.idDoc} className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform" alt="ID Doc" />}
                         <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 text-white font-bold text-xs">
                           <Maximize2 className="w-5 h-5" /> Click to View Full Screen
                         </div>
@@ -3852,7 +3852,7 @@ export default function App() {
                         onClick={() => setFullScreenImage({ url: referralView.pop, title: 'Proof of Payment (POP)', subtitle: referralView.name })}
                         className="aspect-[16/9] rounded-2xl overflow-hidden border border-gray-100 bg-gray-50 cursor-pointer relative group shadow-sm hover:shadow-md transition-all"
                       >
-                        <img src={referralView.pop} className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform" alt="POP" />
+                        {referralView.pop && <img src={referralView.pop} className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform" alt="POP" />}
                         <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 text-white font-bold text-xs">
                           <Maximize2 className="w-5 h-5" /> Click to View Full Screen
                         </div>
@@ -4001,7 +4001,7 @@ export default function App() {
                           <div className="w-2 h-2 bg-blue-500 rounded-full animate-ping" />
                         </div>
                       )}
-                      <img src={ref.selfie} className="w-14 h-14 rounded-2xl object-cover shadow-md" alt="" />
+                      {ref.selfie && <img src={ref.selfie} className="w-14 h-14 rounded-2xl object-cover shadow-md" alt="" />}
                       <div className="flex-1 text-left">
                         <h4 className="font-black text-black">{ref.name}</h4>
                         <div className="flex flex-wrap items-center gap-1.5 mt-1">
@@ -4219,7 +4219,7 @@ export default function App() {
                 </button>
                 <div className="bg-white rounded-[2.5rem] p-6 shadow-2xl border border-gray-100 space-y-6 text-black">
                   <div className="flex items-center gap-4 border-b border-gray-100 pb-6">
-                    <img src={referralView.selfie} className="w-20 h-20 rounded-3xl object-cover shadow-md border border-gray-200" alt="" />
+                    {referralView.selfie && <img src={referralView.selfie} className="w-20 h-20 rounded-3xl object-cover shadow-md border border-gray-200" alt="" />}
                     <div>
                       <span className={`text-[9px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-widest mb-1 inline-block ${referralView.type === 'Tenant' ? 'bg-emerald-500 text-white' : 'bg-blue-500 text-white'}`}>{referralView.type}</span>
                       <h3 className="text-xl font-black text-black">{referralView.name}</h3>
@@ -4240,7 +4240,7 @@ export default function App() {
                         </button>
                       </div>
                       <div onClick={() => setFullScreenImage({ url: referralView.idDoc, title: 'ID / Passport Document', subtitle: referralView.name })} className="aspect-[4/3] rounded-2xl overflow-hidden border border-gray-100 bg-gray-50 cursor-pointer relative group shadow-sm hover:shadow-md transition-all">
-                        <img src={referralView.idDoc} className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform" alt="ID Doc" />
+                        {referralView.idDoc && <img src={referralView.idDoc} className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform" alt="ID Doc" />}
                       </div>
                     </div>
                     <div className="space-y-3">
@@ -4251,7 +4251,7 @@ export default function App() {
                         </button>
                       </div>
                       <div onClick={() => setFullScreenImage({ url: referralView.pop, title: 'Proof of Payment (POP)', subtitle: referralView.name })} className="aspect-[16/9] rounded-2xl overflow-hidden border border-gray-100 bg-gray-50 cursor-pointer relative group shadow-sm hover:shadow-md transition-all">
-                        <img src={referralView.pop} className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform" alt="POP" />
+                        {referralView.pop && <img src={referralView.pop} className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform" alt="POP" />}
                       </div>
                     </div>
                     <div className="space-y-4 pt-4">
@@ -4385,7 +4385,7 @@ export default function App() {
                           <div className="w-2 h-2 bg-amber-400 rounded-full animate-ping" />
                         </div>
                       )}
-                      <img src={ref.selfie} className="w-14 h-14 rounded-2xl object-cover shadow-md border border-gray-200" alt="" />
+                      {ref.selfie && <img src={ref.selfie} className="w-14 h-14 rounded-2xl object-cover shadow-md border border-gray-200" alt="" />}
                       <div className="flex-1 text-left">
                         <h4 className="font-black text-black">{ref.name}</h4>
                         <div className="flex flex-wrap items-center gap-1.5 mt-1">
@@ -4494,7 +4494,7 @@ export default function App() {
                       <div className="flex items-center gap-3">
                         <div className="relative">
                           <div className="w-14 h-14 rounded-2xl bg-gray-100 overflow-hidden border border-gray-200 shadow-inner">
-                            {s.photoURL ? (
+                            {(s.photoURL && s.photoURL !== "") ? (
                               <img src={s.photoURL} alt={s.name} className="w-full h-full object-cover" />
                             ) : (
                               <div className="w-full h-full flex items-center justify-center text-gray-400 font-black text-lg bg-gray-100">
@@ -4670,7 +4670,7 @@ export default function App() {
               <div className="w-full space-y-6">
                 <div className="bg-gray-50 p-6 rounded-[2.5rem] border border-gray-100 flex items-center gap-4">
                   <div className="w-14 h-14 rounded-2xl overflow-hidden bg-black flex items-center justify-center">
-                    {user.photoURL ? (
+                    {(user.photoURL && user.photoURL !== "") ? (
                       <img src={user.photoURL} className="w-full h-full object-cover" alt="" />
                     ) : (
                       <User className="w-6 h-6 text-white/40" />
@@ -4959,12 +4959,12 @@ export default function App() {
             </button>
           </div>
           <div className="flex-1 p-4 flex items-center justify-center overflow-auto cursor-zoom-out" onClick={() => setFullScreenImage(null)}>
-            <img 
+            {fullScreenImage?.url && <img 
               src={fullScreenImage.url} 
               alt={fullScreenImage.title} 
               className="max-w-full max-h-[82vh] object-contain rounded-2xl shadow-2xl border border-white/10 cursor-default"
               onClick={(e) => e.stopPropagation()} 
-            />
+            />}
           </div>
           <div className="p-3 text-center border-t border-white/10 text-gray-400 text-xs shrink-0">
             Click outside or tap Close to return
@@ -6133,7 +6133,7 @@ export default function App() {
             <div className="p-8 pb-0">
               <div className="flex items-center gap-4 mb-6">
                 <div className="w-16 h-16 rounded-2xl overflow-hidden bg-gray-50 border border-gray-100 shadow-inner">
-                    {selectedGigView.userPhoto ? (
+                    {(selectedGigView.userPhoto && selectedGigView.userPhoto !== "") ? (
                         <img src={selectedGigView.userPhoto} alt="Owner" className="w-full h-full object-cover" />
                     ) : (
                         <div className="w-full h-full flex items-center justify-center text-gray-400 font-black text-2xl">
