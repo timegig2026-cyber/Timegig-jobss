@@ -3938,13 +3938,13 @@ export default function App() {
                 </div>
 
                 {/* Referral Link Copy & Share */}
-                <div className="bg-white rounded-[2rem] p-5 shadow-sm border border-gray-100 space-y-3 mb-6">
-                  <span className="text-gray-400 text-[10px] font-black uppercase tracking-widest block">Your Referral Link</span>
-                  <div className="flex items-center gap-2 bg-gray-50 p-2.5 rounded-xl border border-gray-100">
+                <div className="bg-black/40 backdrop-blur-md rounded-[2rem] p-5 shadow-xl border border-white/10 space-y-3 mb-6 text-white">
+                  <span className="text-gray-300 text-[10px] font-black uppercase tracking-widest block">Your Referral Link</span>
+                  <div className="flex items-center gap-2 bg-white/10 backdrop-blur-md p-2.5 rounded-xl border border-white/20">
                     <input 
                       readOnly 
                       value={`${window.location.origin}${window.location.pathname}?ref=${user?.uid}`} 
-                      className="flex-1 bg-transparent text-black text-xs font-mono outline-none"
+                      className="flex-1 bg-transparent text-white text-xs font-mono outline-none placeholder-gray-400"
                     />
                     <button 
                       onClick={() => {
@@ -3952,7 +3952,7 @@ export default function App() {
                         playSmoothReceiveSound();
                         alert('✅ Referral link copied!');
                       }}
-                      className="p-2 bg-black text-white rounded-lg transition-all active:scale-90"
+                      className="p-2 bg-white text-black rounded-lg transition-all active:scale-90"
                     >
                       <Link2 className="w-4 h-4" />
                     </button>
@@ -3964,24 +3964,24 @@ export default function App() {
                     >WhatsApp</button>
                     <button 
                       onClick={() => window.open(`https://twitter.com/intent/tweet?url=${encodeURIComponent(`${window.location.origin}${window.location.pathname}?ref=${user?.uid}`)}`, '_blank')}
-                      className="flex-1 py-2 bg-blue-400 text-white rounded-xl font-bold text-[10px] uppercase tracking-wider"
+                      className="flex-1 py-2 bg-blue-500 text-white rounded-xl font-bold text-[10px] uppercase tracking-wider"
                     >Twitter</button>
                     <button 
                       onClick={() => window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(`${window.location.origin}${window.location.pathname}?ref=${user?.uid}`)}`, '_blank')}
-                      className="flex-1 py-2 bg-blue-700 text-white rounded-xl font-bold text-[10px] uppercase tracking-wider"
+                      className="flex-1 py-2 bg-blue-600 text-white rounded-xl font-bold text-[10px] uppercase tracking-wider"
                     >Facebook</button>
                   </div>
                 </div>
 
                 {/* Referrals List */}
                 <div className="space-y-3">
-                  <h3 className="text-sm font-black text-black uppercase tracking-wider">
+                  <h3 className="text-sm font-black text-white uppercase tracking-wider">
                     Applications ({referrals.length})
                   </h3>
                   {referrals.length === 0 ? (
-                    <div className="text-center py-16 bg-white rounded-[2rem] border border-dashed border-gray-200 space-y-2">
-                      <Gift className="w-8 h-8 text-gray-300 mx-auto" />
-                      <p className="text-gray-400 font-bold uppercase tracking-widest text-xs">No referral applications found</p>
+                    <div className="text-center py-16 bg-black/40 backdrop-blur-md rounded-[2rem] border border-dashed border-white/20 space-y-2 text-white">
+                      <Gift className="w-8 h-8 text-gray-400 mx-auto" />
+                      <p className="text-gray-300 font-bold uppercase tracking-widest text-xs">No referral applications found</p>
                       <p className="text-gray-400 text-[11px]">Share your link above to start receiving tenant & user signup commissions!</p>
                     </div>
                   ) : referrals.map(ref => (
@@ -3995,16 +3995,16 @@ export default function App() {
                           } catch (err) { console.warn(err); }
                         }
                       }} 
-                      className={`w-full bg-white p-4 rounded-3xl border flex items-center gap-4 active:scale-[0.98] transition-all hover:border-blue-200 relative overflow-hidden ${!ref.isViewed ? 'border-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.3)]' : 'border-gray-100 shadow-sm'}`}
+                      className={`w-full bg-black/40 backdrop-blur-md p-4 rounded-3xl border flex items-center gap-4 active:scale-[0.98] transition-all hover:border-white/30 relative overflow-hidden text-white ${!ref.isViewed ? 'border-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.3)]' : 'border-white/10 shadow-xl'}`}
                     >
                       {!ref.isViewed && (
-                        <div className="absolute top-0 right-0 w-8 h-8 bg-amber-500/10 rounded-bl-2xl flex items-center justify-center">
-                          <div className="w-2 h-2 bg-amber-500 rounded-full animate-ping" />
+                        <div className="absolute top-0 right-0 w-8 h-8 bg-amber-500/20 rounded-bl-2xl flex items-center justify-center">
+                          <div className="w-2 h-2 bg-amber-400 rounded-full animate-ping" />
                         </div>
                       )}
-                      <img src={ref.selfie} className="w-14 h-14 rounded-2xl object-cover shadow-md" alt="" />
+                      <img src={ref.selfie} className="w-14 h-14 rounded-2xl object-cover shadow-md border border-white/20" alt="" />
                       <div className="flex-1 text-left">
-                        <h4 className="font-black text-black">{ref.name}</h4>
+                        <h4 className="font-black text-white">{ref.name}</h4>
                         <div className="flex flex-wrap items-center gap-1.5 mt-1">
                           <span className={`text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-widest ${ref.type === 'Tenant' ? 'bg-emerald-500 text-white' : 'bg-blue-500 text-white'}`}>{ref.type}</span>
                           <span className={`text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-widest ${ref.status === 'active' || ref.status === 'approved' ? 'bg-emerald-600 text-white' : ref.status === 'frozen' ? 'bg-red-600 text-white' : 'bg-amber-500 text-white'}`}>
@@ -4015,7 +4015,7 @@ export default function App() {
                           )}
                         </div>
                       </div>
-                      <ChevronLeft className="w-4 h-4 text-gray-300 rotate-180" />
+                      <ChevronLeft className="w-4 h-4 text-gray-400 rotate-180" />
                     </button>
                   ))}
                 </div>
