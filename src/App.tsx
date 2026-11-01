@@ -5665,9 +5665,9 @@ export default function App() {
               <Gift className="w-10 h-10 text-blue-600" />
             </div>
             <div className="space-y-2">
-              <span className="text-[10px] font-black text-blue-400 uppercase tracking-[0.2em] bg-blue-500/20 px-3 py-1 rounded-full">Trusted Independent App</span>
-              <h3 className="text-2xl font-black text-white tracking-tight">Welcome to TimeGiG!</h3>
-              <p className="text-gray-300 text-xs leading-relaxed">
+              <span className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em] bg-blue-50 px-3 py-1 rounded-full">Trusted Independent App</span>
+              <h3 className="text-2xl font-black text-black tracking-tight">Welcome to TimeGiG!</h3>
+              <p className="text-black text-xs leading-relaxed font-medium">
                 TimeGiG was built because of unemployment and is a trusted independent app connecting local job seekers with gig owners. You were invited by a partner Tenant to join our verified on-demand gig network.
               </p>
               <div className="bg-gray-50 p-3.5 rounded-xl border border-gray-100 text-xs text-gray-700 font-medium text-left space-y-1.5">
