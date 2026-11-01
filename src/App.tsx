@@ -7,7 +7,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, useMap, useMapEvents, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
-import { MapPin, Compass, Search, LocateFixed, Zap, X, Plus, Minus, Layers, Check, Camera, FileText, CreditCard, Clock, ChevronLeft, Upload, RefreshCw, Scan, LayoutGrid, Users, Trash2, User, Mail, Phone, Link2, Briefcase, Star, MapPinned, Lock, Unlock, Globe, Target, LogIn, LogOut, Maximize2, CheckCircle2, Sparkles, ShieldCheck, Gift, HelpCircle, Settings, Volume2, VolumeX, Bell, AlertTriangle, ShieldAlert, Crown, AlertCircle, Inbox, Archive, Send, Eye, EyeOff, ShoppingBag } from 'lucide-react';
+import { MapPin, Compass, Search, LocateFixed, Zap, X, Plus, Minus, Layers, Check, Camera, FileText, CreditCard, Clock, ChevronLeft, Upload, RefreshCw, Scan, LayoutGrid, Users, Trash2, User, Mail, Phone, Link2, Briefcase, Star, MapPinned, Lock, Unlock, Globe, Target, LogIn, LogOut, Maximize2, CheckCircle2, Sparkles, ShieldCheck, Gift, HelpCircle, Settings, Volume2, VolumeX, Bell, AlertTriangle, ShieldAlert, Crown, AlertCircle, Inbox, Archive, Send, Eye, EyeOff, ShoppingBag, MessageSquare, Megaphone } from 'lucide-react';
 import * as faceapi from 'face-api.js';
 import { auth, db } from './lib/firebase';
 import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut, User as FirebaseUser, signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
@@ -515,7 +515,14 @@ export default function App() {
   const [recipientSearchQuery, setRecipientSearchQuery] = useState('');
   const [isBroadcasting, setIsBroadcasting] = useState(false);
   const [promoSuccessToast, setPromoSuccessToast] = useState<string | null>(null);
-  const [mainTenantInboxTab, setMainTenantInboxTab] = useState<'compose' | 'sent' | 'direct'>('compose');
+  const [mainTenantInboxTab, setMainTenantInboxTab] = useState<'compose' | 'sent' | 'direct' | 'feedback'>('compose');
+
+  // Feedback State
+  const [feedbackText, setFeedbackText] = useState('');
+  const [feedbackCategory, setFeedbackCategory] = useState<'Feature Request' | 'App Improvement' | 'Idea' | 'Bug Report'>('Feature Request');
+  const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
+  const [feedbackSuccessToast, setFeedbackSuccessToast] = useState<string | null>(null);
+  const [feedbacks, setFeedbacks] = useState<any[]>([]);
 
   // Referral Welcome State
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
@@ -1646,6 +1653,34 @@ export default function App() {
     return () => unsubscribe();
   }, [user, playSmoothReceiveSound]);
 
+  // Listen for Feedback submissions
+  useEffect(() => {
+    if (!db || !user) {
+      setFeedbacks([]);
+      return;
+    }
+    const isMain = user.email?.trim().toLowerCase() === 'timegig2026@gmail.com';
+    const q = isMain
+      ? query(collection(db, 'feedback'))
+      : query(collection(db, 'feedback'), where('userId', '==', user.uid));
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const list: any[] = [];
+      snapshot.forEach((docSnap) => {
+        list.push({ id: docSnap.id, ...docSnap.data() });
+      });
+      list.sort((a, b) => {
+        const timeA = a.createdAt?.toMillis?.() || (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+        const timeB = b.createdAt?.toMillis?.() || (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+        return timeB - timeA;
+      });
+      setFeedbacks(list);
+    }, (error) => {
+      console.warn('Feedback listener notice:', error);
+    });
+    return () => unsubscribe();
+  }, [user]);
+
 
 
   const handleLogin = async () => {
@@ -2172,7 +2207,7 @@ export default function App() {
     }
   };
 
-  // Main Tenant / Referral Tenant: Send promotion or direct message to selected audience
+  // Main Tenant: Send promotion messages to referral Tenants and users throughout the app
   const handleSendPromotion = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!promoSubject.trim() || !promoBody.trim() || !user || !canManagePromotions) return;
@@ -2182,14 +2217,14 @@ export default function App() {
     try {
       const subject = promoSubject.trim();
       const body = promoBody.trim();
-      const senderName = profileData.name ? `${profileData.name} ${profileData.surname}` : (isMainTenant ? 'TimeGiG Main Administration' : 'Partner Tenant');
+      const senderName = profileData.name ? `${profileData.name} ${profileData.surname}`.trim() : (isMainTenant ? 'TimeGiG Main Administration' : 'Partner Tenant');
       const senderEmail = user.email || 'system@timegig.app';
 
       let targetCount = 0;
       let label = 'All Tenants & Users';
 
       if (promoTargetType === 'all') {
-        // Create single global broadcast document ('recipientId: all')
+        // Global broadcast to all tenants and users
         await addDoc(collection(db, 'messages'), {
           recipientId: 'all',
           recipientName: 'All Tenants & Users',
@@ -2199,47 +2234,83 @@ export default function App() {
           subject,
           body,
           type: 'promotion',
+          targetAudience: 'all',
           isBroadcast: true,
           isRead: false,
           createdAt: serverTimestamp()
         });
         targetCount = allUsersList.length || 1;
+        label = 'All Tenants & Users Network';
       } else if (promoTargetType === 'tenants') {
+        // Broadcast to referral tenants
+        await addDoc(collection(db, 'messages'), {
+          recipientId: 'all',
+          recipientName: 'Referral Tenants Network',
+          senderId: user.uid,
+          senderEmail,
+          senderName,
+          subject,
+          body,
+          type: 'promotion',
+          targetAudience: 'tenants',
+          isBroadcast: true,
+          isRead: false,
+          createdAt: serverTimestamp()
+        });
+
         const tenantUids = allUsersList.filter(u => u.role === 'Tenant' && u.uid !== user.uid).map(u => u.uid);
         for (const tUid of tenantUids) {
           await addDoc(collection(db, 'messages'), {
             recipientId: tUid,
-            recipientName: 'Tenants Network',
+            recipientName: 'Referral Tenants Network',
             senderId: user.uid,
             senderEmail,
             senderName,
             subject,
             body,
             type: 'promotion',
+            targetAudience: 'tenants',
             isRead: false,
             createdAt: serverTimestamp()
           });
         }
         targetCount = tenantUids.length;
-        label = `${targetCount} Tenant Accounts`;
+        label = 'Referral Tenants';
       } else if (promoTargetType === 'users') {
+        // Broadcast to referral users
+        await addDoc(collection(db, 'messages'), {
+          recipientId: 'all',
+          recipientName: 'Referral Users Network',
+          senderId: user.uid,
+          senderEmail,
+          senderName,
+          subject,
+          body,
+          type: 'promotion',
+          targetAudience: 'users',
+          isBroadcast: true,
+          isRead: false,
+          createdAt: serverTimestamp()
+        });
+
         const userUids = allUsersList.filter(u => u.role !== 'Tenant' && u.uid !== user.uid).map(u => u.uid);
         for (const uUid of userUids) {
           await addDoc(collection(db, 'messages'), {
             recipientId: uUid,
-            recipientName: 'User Network',
+            recipientName: 'Referral Users Network',
             senderId: user.uid,
             senderEmail,
             senderName,
             subject,
             body,
             type: 'promotion',
+            targetAudience: 'users',
             isRead: false,
             createdAt: serverTimestamp()
           });
         }
         targetCount = userUids.length;
-        label = `${targetCount} User Accounts`;
+        label = 'Referral Users';
       } else if (promoTargetType === 'selected') {
         if (selectedPromoRecipientUids.length === 0) {
           setError('Please select at least one recipient from the list.');
@@ -2271,14 +2342,73 @@ export default function App() {
       setPromoBody('');
       setSelectedPromoRecipientUids([]);
       setPromoSuccessToast(
-        `🎉 Message successfully sent to ${label}!`
+        `🎉 Promotion message successfully sent to ${label}!`
       );
-      setMainTenantInboxTab('sent');
+      setMainTenantInboxTab('direct');
     } catch (err: any) {
       console.warn('Send promotion error:', err);
-      setError(err?.message || 'Failed to send message to selected recipients.');
+      setError(err?.message || 'Failed to send promotion to selected recipients.');
     } finally {
       setIsBroadcasting(false);
+    }
+  };
+
+  // User Feedback and Feature Requests Handler
+  const handleSendFeedback = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!feedbackText.trim() || !user) return;
+
+    setIsSubmittingFeedback(true);
+    try {
+      const text = feedbackText.trim();
+      const userName = profileData.name ? `${profileData.name} ${profileData.surname || ''}`.trim() : (user.displayName || 'TimeGiG Member');
+      const userEmail = user.email || 'user@timegig.app';
+
+      // 1. Add to dedicated feedback collection in Firestore
+      await addDoc(collection(db, 'feedback'), {
+        userId: user.uid,
+        userName,
+        userEmail,
+        userRole: userRole || 'User',
+        category: feedbackCategory,
+        feedbackText: text,
+        status: 'new',
+        createdAt: serverTimestamp()
+      });
+
+      // 2. Add as message for Main Tenant in messages collection
+      await addDoc(collection(db, 'messages'), {
+        recipientId: 'timegig2026@gmail.com',
+        recipientName: 'TimeGiG Main Administration',
+        senderId: user.uid,
+        senderEmail: userEmail,
+        senderName: userName,
+        subject: `💡 Feedback: [${feedbackCategory}] from ${userName}`,
+        body: text,
+        type: 'feedback',
+        category: feedbackCategory,
+        isRead: false,
+        createdAt: serverTimestamp()
+      });
+
+      playSmoothReceiveSound();
+      setFeedbackText('');
+      setFeedbackSuccessToast('🎉 Thank you! Your feedback & feature request has been sent to the Main Tenant.');
+      setTimeout(() => setFeedbackSuccessToast(null), 6000);
+    } catch (err: any) {
+      console.warn('Feedback submit error:', err);
+      alert('Failed to send feedback: ' + (err?.message || 'Please try again.'));
+    } finally {
+      setIsSubmittingFeedback(false);
+    }
+  };
+
+  const handleDeleteFeedback = async (feedbackId: string) => {
+    if (!confirm('Delete this feedback submission?')) return;
+    try {
+      await deleteDoc(doc(db, 'feedback', feedbackId));
+    } catch (err) {
+      console.warn('Delete feedback error:', err);
     }
   };
 
@@ -3152,7 +3282,7 @@ export default function App() {
                     {/* Quick Promotion Broadcast Action */}
                     <button
                       onClick={() => {
-                        setMainTenantInboxTab('compose');
+                        setMainTenantInboxTab('direct');
                         setShowInbox(true);
                       }}
                       className="w-full py-3.5 px-4 bg-black text-white rounded-2xl flex items-center justify-between border border-white/10 shadow-md active:scale-98 transition-all hover:border-amber-400/50 group"
@@ -3164,7 +3294,7 @@ export default function App() {
                         <div className="text-left">
                           <h4 className="text-xs font-black uppercase tracking-wider text-white group-hover:text-amber-400 transition-colors flex items-center gap-1.5">
                             Type & Send Promotions
-                            <span className="text-[9px] bg-amber-400/20 text-amber-300 px-2 py-0.5 rounded-full font-bold">Inbox Type Box</span>
+                            <span className="text-[9px] bg-amber-400/20 text-amber-300 px-2 py-0.5 rounded-full font-bold">Main Tenant Box</span>
                           </h4>
                           <p className="text-[10px] text-gray-400 font-medium">Broadcast messages to all tenants & users</p>
                         </div>
@@ -4594,36 +4724,50 @@ export default function App() {
         </div>
       )}
 
-      {/* Tenant Inbox & Main Tenant Promotion Center (See-Through Glass & Takealot Style) */}
+      {/* Tenant Inbox & Main Tenant Promotion Center (See-Through Glass) */}
       {showInbox && (
         <div className="fixed inset-0 z-[15000] bg-black/40 backdrop-blur-xl flex flex-col animate-in slide-in-from-bottom duration-300">
-          {/* Takealot-Inspired Header Bar (Blue & Orange branding accents) */}
+          {/* Header Bar */}
           <div className="p-3 pt-4 flex items-center justify-between bg-[#0b1a30]/80 backdrop-blur-2xl border-b border-white/10 text-white shadow-lg shrink-0">
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-xl bg-orange-500 text-white flex items-center justify-center font-black shadow-md">
-                <ShoppingBag className="w-4 h-4" />
+                <Gift className="w-4 h-4" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h3 className="text-base font-black tracking-tight text-white">TimeGiG Inbox & Deals</h3>
+                  <h3 className="text-base font-black tracking-tight text-white">TimeGiG Promotion & Inbox Center</h3>
                   <span className="text-[8px] font-black uppercase tracking-widest bg-orange-500 text-white px-2 py-0.5 rounded-full shadow-sm">
-                    Takealot Style
+                    Exclusive Deals
                   </span>
                 </div>
                 <p className="text-[9px] font-bold text-gray-300 uppercase tracking-wider">
-                  Gig Applications, Nearby Opportunities & Special Promotions
+                  Gig Applications, Nearby Gigs, Promotions & User Feedback
                 </p>
               </div>
             </div>
-            <button 
-              onClick={() => setShowInbox(false)}
-              className="p-2 bg-white/10 hover:bg-white/20 rounded-xl text-white transition-all active:scale-95"
-            >
-              <X className="w-5 h-5" />
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setMainTenantInboxTab('feedback')}
+                className={`p-2 rounded-xl transition-all active:scale-95 flex items-center gap-1.5 ${
+                  mainTenantInboxTab === 'feedback'
+                    ? 'bg-purple-600 text-white shadow-md'
+                    : 'bg-white/10 hover:bg-white/20 text-purple-300'
+                }`}
+                title="Send App Feedback & Request Features"
+              >
+                <MessageSquare className="w-4 h-4" />
+                <span className="text-[10px] font-bold uppercase hidden sm:inline">Feedback</span>
+              </button>
+              <button 
+                onClick={() => setShowInbox(false)}
+                className="p-2 bg-white/10 hover:bg-white/20 rounded-xl text-white transition-all active:scale-95"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
           </div>
 
-          {/* Toast Notification */}
+          {/* Toast Notifications */}
           {promoSuccessToast && (
             <div className="mx-4 mt-3 p-3.5 bg-emerald-500 text-white rounded-2xl flex items-center justify-between text-xs font-bold shadow-lg animate-in fade-in duration-200 shrink-0">
               <div className="flex items-center gap-2.5">
@@ -4635,12 +4779,23 @@ export default function App() {
               </button>
             </div>
           )}
+          {feedbackSuccessToast && (
+            <div className="mx-4 mt-3 p-3.5 bg-purple-600 text-white rounded-2xl flex items-center justify-between text-xs font-bold shadow-lg animate-in fade-in duration-200 shrink-0">
+              <div className="flex items-center gap-2.5">
+                <CheckCircle2 className="w-5 h-5 shrink-0 text-amber-300" />
+                <span>{feedbackSuccessToast}</span>
+              </div>
+              <button onClick={() => setFeedbackSuccessToast(null)} className="p-1 hover:bg-white/20 rounded-lg">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
 
-          {/* Inbox View Tabs: Gig Applications, Nearby Gigs & Promotions (Takealot Style) */}
-          <div className="px-4 py-2.5 bg-black/40 backdrop-blur-xl border-b border-white/10 flex items-center gap-2 shrink-0 overflow-x-auto no-scrollbar">
+          {/* Inbox View Tabs: Gig Applications, Nearby Gigs, Promotions & Feedback */}
+          <div className="px-3 py-2 bg-black/40 backdrop-blur-xl border-b border-white/10 flex items-center gap-1.5 shrink-0 overflow-x-auto no-scrollbar">
             <button
               onClick={() => setMainTenantInboxTab('compose')}
-              className={`flex-1 py-2 px-3 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 whitespace-nowrap ${
+              className={`flex-1 py-2 px-2.5 rounded-xl font-black text-[11px] uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 whitespace-nowrap ${
                 mainTenantInboxTab === 'compose'
                   ? 'bg-blue-600 text-white shadow-lg border border-blue-400'
                   : 'bg-white/10 text-gray-300 hover:bg-white/20 border border-white/5'
@@ -4650,7 +4805,7 @@ export default function App() {
             </button>
             <button
               onClick={() => setMainTenantInboxTab('sent')}
-              className={`flex-1 py-2 px-3 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 whitespace-nowrap ${
+              className={`flex-1 py-2 px-2.5 rounded-xl font-black text-[11px] uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 whitespace-nowrap ${
                 mainTenantInboxTab === 'sent'
                   ? 'bg-blue-600 text-white shadow-lg border border-blue-400'
                   : 'bg-white/10 text-gray-300 hover:bg-white/20 border border-white/5'
@@ -4660,13 +4815,23 @@ export default function App() {
             </button>
             <button
               onClick={() => setMainTenantInboxTab('direct')}
-              className={`flex-1 py-2 px-3 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 whitespace-nowrap ${
+              className={`flex-1 py-2 px-2.5 rounded-xl font-black text-[11px] uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 whitespace-nowrap ${
                 mainTenantInboxTab === 'direct'
                   ? 'bg-orange-500 text-white shadow-lg border border-orange-300'
                   : 'bg-white/10 text-gray-300 hover:bg-white/20 border border-white/5'
               }`}
             >
-              <Gift className="w-3.5 h-3.5 text-white" /> Promotions ({messages.filter(m => m.type !== 'gig_application').length})
+              <Gift className="w-3.5 h-3.5 text-white" /> Promotions ({messages.filter(m => m.type !== 'gig_application' && m.type !== 'feedback').length})
+            </button>
+            <button
+              onClick={() => setMainTenantInboxTab('feedback')}
+              className={`flex-1 py-2 px-2.5 rounded-xl font-black text-[11px] uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 whitespace-nowrap ${
+                mainTenantInboxTab === 'feedback'
+                  ? 'bg-purple-600 text-white shadow-lg border border-purple-400'
+                  : 'bg-white/10 text-gray-300 hover:bg-white/20 border border-white/5'
+              }`}
+            >
+              <MessageSquare className="w-3.5 h-3.5 text-purple-300" /> Feedback {isMainTenant && feedbacks.length > 0 ? `(${feedbacks.length})` : ''}
             </button>
           </div>
 
@@ -4847,16 +5012,118 @@ export default function App() {
                   ))
                 )}
               </div>
-            ) : (
-              /* Promotions Tab (Takealot Style Deals & Broadcasts) */
+            ) : mainTenantInboxTab === 'direct' ? (
+              /* Promotions Tab */
               <div className="max-w-xl mx-auto w-full space-y-3 pb-6">
-                {/* Takealot-styled Featured Banner */}
+                {/* Main Tenant Promotion Compose Text Box - ONLY for Main Tenant */}
+                {isMainTenant && (
+                  <div className="p-3.5 rounded-2xl bg-white/90 backdrop-blur-md border border-amber-300/40 shadow-xl space-y-3">
+                    <div className="flex items-center justify-between border-b border-gray-100 pb-2">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-xl bg-amber-400 text-black flex items-center justify-center font-black shadow-sm">
+                          <Megaphone className="w-3.5 h-3.5" />
+                        </div>
+                        <div>
+                          <h4 className="text-xs font-black uppercase tracking-wider text-black flex items-center gap-1.5">
+                            Broadcast Promotion
+                            <span className="text-[8px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-bold">Main Tenant Only</span>
+                          </h4>
+                          <p className="text-[9px] text-gray-500 font-medium">Send promotions to referral tenants and users throughout the app</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Target Selector */}
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-black uppercase tracking-wider text-gray-600">Send To</label>
+                      <div className="grid grid-cols-3 gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setPromoTargetType('all')}
+                          className={`py-1.5 px-2 rounded-xl text-[10px] font-black uppercase transition-all ${
+                            promoTargetType === 'all'
+                              ? 'bg-black text-white shadow'
+                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                          }`}
+                        >
+                          All Network
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPromoTargetType('tenants')}
+                          className={`py-1.5 px-2 rounded-xl text-[10px] font-black uppercase transition-all ${
+                            promoTargetType === 'tenants'
+                              ? 'bg-black text-white shadow'
+                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                          }`}
+                        >
+                          Referral Tenants
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPromoTargetType('users')}
+                          className={`py-1.5 px-2 rounded-xl text-[10px] font-black uppercase transition-all ${
+                            promoTargetType === 'users'
+                              ? 'bg-black text-white shadow'
+                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                          }`}
+                        >
+                          Referral Users
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Subject Input */}
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-black uppercase tracking-wider text-gray-600">Promotion Subject</label>
+                      <input
+                        type="text"
+                        value={promoSubject}
+                        onChange={(e) => setPromoSubject(e.target.value)}
+                        placeholder="e.g. Weekend Commission Boost or Special Feature Announcement"
+                        className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-black placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                      />
+                    </div>
+
+                    {/* Promotion Body Text Box */}
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-black uppercase tracking-wider text-gray-600">Promotion Message Body</label>
+                      <textarea
+                        rows={3}
+                        value={promoBody}
+                        onChange={(e) => setPromoBody(e.target.value)}
+                        placeholder="Type promotional details, discounts, bonuses or alerts to send across the app..."
+                        className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-black placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none leading-relaxed"
+                      />
+                    </div>
+
+                    {/* Send Button */}
+                    <button
+                      type="button"
+                      disabled={isBroadcasting || !promoSubject.trim() || !promoBody.trim()}
+                      onClick={() => handleSendPromotion()}
+                      className="w-full py-2.5 bg-gradient-to-r from-amber-400 to-orange-500 hover:from-amber-500 hover:to-orange-600 text-black font-black text-xs rounded-xl uppercase tracking-wider shadow-md active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                    >
+                      {isBroadcasting ? (
+                        <>
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Sending Promotion...
+                        </>
+                      ) : (
+                        <>
+                          <Send className="w-3.5 h-3.5" /> Broadcast Promotion Message
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
+
+                {/* Featured Promotion Banner */}
                 <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-orange-500 rounded-2xl p-4 text-white shadow-xl border border-white/20 space-y-2 relative overflow-hidden">
                   <div className="absolute top-0 right-0 p-4 opacity-10">
                     <Gift className="w-24 h-24 text-white" />
                   </div>
                   <span className="bg-white/20 text-white text-[8px] font-black uppercase px-2.5 py-0.5 rounded-full tracking-widest">
-                    🔥 Daily Deal & Promo Spotlight
+                    🔥 Daily Deal & Promotion Spotlight
                   </span>
                   <h4 className="text-base font-black tracking-tight">Earn 2x Commission This Weekend!</h4>
                   <p className="text-[11px] text-white/90 leading-snug">
@@ -4864,8 +5131,14 @@ export default function App() {
                   </p>
                 </div>
 
+                {/* List of Promotions */}
                 {(() => {
-                  const promoMsgs = messages.filter(m => m.type !== 'gig_application');
+                  const promoMsgs = messages.filter(m => {
+                    if (m.type === 'gig_application' || m.type === 'feedback') return false;
+                    if (m.targetAudience === 'tenants' && !isMainTenant && userRole !== 'Tenant') return false;
+                    if (m.targetAudience === 'users' && !isMainTenant && userRole === 'Tenant') return false;
+                    return true;
+                  });
                   if (promoMsgs.length === 0) {
                     return (
                       <div className="p-8 text-center bg-white/40 backdrop-blur-md rounded-2xl border border-white/20 space-y-2">
@@ -4884,13 +5157,16 @@ export default function App() {
                           </div>
                           <div>
                             <h4 className="font-black text-xs text-black">{msg.subject}</h4>
-                            <p className="text-[8px] text-orange-600 font-bold uppercase tracking-wider">Takealot Deal & Promotion</p>
+                            <p className="text-[8px] text-orange-600 font-bold uppercase tracking-wider">
+                              {msg.targetAudience === 'tenants' ? 'Tenants Special Promotion' : msg.targetAudience === 'users' ? 'Users Special Promotion' : 'TimeGiG Official Promotion'}
+                            </p>
                           </div>
                         </div>
                         {canManagePromotions && (
                           <button 
                             onClick={async () => { if (confirm('Delete promotion?')) await deleteDoc(doc(db, 'messages', msg.id)); }}
                             className="p-1 text-gray-400 hover:text-red-500 transition-colors"
+                            title="Delete Promotion"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -4899,11 +5175,175 @@ export default function App() {
                       <p className="text-[10px] text-gray-700 leading-relaxed whitespace-pre-wrap bg-white/50 p-3 rounded-xl border border-gray-100 font-medium">{msg.body}</p>
                       <div className="flex items-center justify-between text-[8px] font-black uppercase text-gray-400 pt-1">
                         <span>{msg.createdAt?.toDate ? msg.createdAt.toDate().toLocaleString() : 'Recently'}</span>
-                        <span className="text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100">Verified Deal</span>
+                        <span className="text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100">Verified Promotion</span>
                       </div>
                     </div>
                   ));
                 })()}
+              </div>
+            ) : (
+              /* Feedback Tab */
+              <div className="max-w-xl mx-auto w-full space-y-3 pb-6">
+                {/* Feedback Intro Banner */}
+                <div className="bg-gradient-to-r from-purple-700 via-indigo-700 to-blue-700 rounded-2xl p-4 text-white shadow-xl border border-white/20 space-y-1.5 relative overflow-hidden">
+                  <div className="absolute top-0 right-0 p-4 opacity-10">
+                    <MessageSquare className="w-24 h-24 text-white" />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="bg-white/20 text-white text-[8px] font-black uppercase px-2 py-0.5 rounded-full tracking-widest flex items-center gap-1">
+                      <Sparkles className="w-2.5 h-2.5 text-amber-300" /> User Voice
+                    </span>
+                    <span className="text-[9px] text-purple-200 font-bold uppercase tracking-wider">Direct to Main Tenant</span>
+                  </div>
+                  <h4 className="text-base font-black tracking-tight">App Feedback & Feature Requests</h4>
+                  <p className="text-[11px] text-purple-100 leading-snug">
+                    What features do you want in TimeGiG? Send us your suggestions, ideas, or feedback directly.
+                  </p>
+                </div>
+
+                {/* Send Feedback Text Box Card */}
+                <div className="p-4 rounded-2xl bg-white/90 backdrop-blur-md border border-white/30 shadow-xl space-y-3">
+                  <div className="flex items-center gap-2 border-b border-gray-100 pb-2.5">
+                    <div className="w-7 h-7 rounded-xl bg-purple-600 text-white flex items-center justify-center font-black shadow-sm">
+                      <MessageSquare className="w-3.5 h-3.5" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-black uppercase tracking-wider text-black">Submit Your Feedback</h4>
+                      <p className="text-[9px] text-gray-500 font-medium">Tell us what features you want or how we can improve</p>
+                    </div>
+                  </div>
+
+                  {/* Category Selection */}
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-black uppercase tracking-wider text-gray-600">Category</label>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                      {(['Feature Request', 'App Improvement', 'Idea', 'Bug Report'] as const).map(cat => (
+                        <button
+                          key={cat}
+                          type="button"
+                          onClick={() => setFeedbackCategory(cat)}
+                          className={`py-1.5 px-2 rounded-xl text-[9px] font-black uppercase transition-all ${
+                            feedbackCategory === cat
+                              ? 'bg-purple-600 text-white shadow font-black'
+                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200 font-bold'
+                          }`}
+                        >
+                          {cat}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Feedback Text Box */}
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-black uppercase tracking-wider text-gray-600">Your Feedback & Requested Features</label>
+                    <textarea
+                      rows={4}
+                      value={feedbackText}
+                      onChange={(e) => setFeedbackText(e.target.value)}
+                      placeholder="Type your feedback here... What features do you want us to add? What would make your experience better?"
+                      className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs text-black placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none leading-relaxed"
+                    />
+                    <div className="flex items-center justify-between text-[9px] text-gray-400 px-1">
+                      <span>Constructive feedback helps shape future releases</span>
+                      <span>{feedbackText.length} characters</span>
+                    </div>
+                  </div>
+
+                  {/* Submit Feedback Button */}
+                  <button
+                    type="button"
+                    disabled={isSubmittingFeedback || !feedbackText.trim()}
+                    onClick={() => handleSendFeedback()}
+                    className="w-full py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-black text-xs rounded-xl uppercase tracking-wider shadow-md active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                  >
+                    {isSubmittingFeedback ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Sending Feedback...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="w-3.5 h-3.5" /> Send Feedback to Main Tenant
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {/* Main Tenant View: All User Feedback Submissions */}
+                {isMainTenant && (
+                  <div className="space-y-2 pt-2">
+                    <div className="flex items-center justify-between px-1">
+                      <h4 className="text-xs font-black uppercase tracking-wider text-white flex items-center gap-2">
+                        <MessageSquare className="w-3.5 h-3.5 text-purple-300" />
+                        Community Feedback ({feedbacks.length})
+                      </h4>
+                      <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-200 border border-purple-400/30">
+                        Main Tenant Review
+                      </span>
+                    </div>
+
+                    {feedbacks.length === 0 ? (
+                      <div className="p-6 text-center bg-white/40 backdrop-blur-md rounded-2xl border border-white/20">
+                        <p className="text-gray-700 font-bold text-xs">No feedback or feature requests received yet.</p>
+                        <p className="text-gray-500 text-[10px] mt-1">When users submit feedback about requested features, they will appear here.</p>
+                      </div>
+                    ) : (
+                      feedbacks.map(fb => (
+                        <div key={fb.id} className="p-3.5 rounded-2xl bg-white/90 backdrop-blur-md border border-white/20 shadow-md space-y-2 relative overflow-hidden">
+                          <div className="flex items-start justify-between">
+                            <div className="space-y-0.5">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="text-xs font-black text-black">{fb.userName || 'Member'}</span>
+                                <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded-full bg-purple-100 text-purple-800">
+                                  {fb.userRole || 'User'}
+                                </span>
+                                <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">
+                                  {fb.category || 'Feedback'}
+                                </span>
+                              </div>
+                              <p className="text-[9px] text-gray-500">{fb.userEmail}</p>
+                            </div>
+                            <button
+                              onClick={() => handleDeleteFeedback(fb.id)}
+                              className="p-1 text-gray-400 hover:text-red-500 transition-colors"
+                              title="Delete Feedback"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                          <p className="text-[10px] text-gray-800 leading-relaxed whitespace-pre-wrap bg-gray-50 p-2.5 rounded-xl border border-gray-100 font-medium">
+                            {fb.feedbackText}
+                          </p>
+                          <div className="flex items-center justify-between text-[8px] font-bold text-gray-400 pt-0.5">
+                            <span>{fb.createdAt?.toDate ? fb.createdAt.toDate().toLocaleString() : 'Recently'}</span>
+                            <span className="text-emerald-600 font-black">Delivered</span>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
+
+                {/* Regular User / Referral Tenant View: Their Own Previously Submitted Feedback */}
+                {!isMainTenant && feedbacks.length > 0 && (
+                  <div className="space-y-2 pt-2">
+                    <h4 className="text-xs font-black uppercase tracking-wider text-white px-1">Your Submitted Feedback ({feedbacks.length})</h4>
+                    {feedbacks.map(fb => (
+                      <div key={fb.id} className="p-3 rounded-2xl bg-white/80 backdrop-blur-md border border-white/20 shadow-sm space-y-1.5">
+                        <div className="flex items-center justify-between text-[9px]">
+                          <span className="font-black px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 uppercase">{fb.category}</span>
+                          <span className="text-gray-500">{fb.createdAt?.toDate ? fb.createdAt.toDate().toLocaleDateString() : 'Recently'}</span>
+                        </div>
+                        <p className="text-[10px] text-gray-700 bg-white/50 p-2 rounded-xl">{fb.feedbackText}</p>
+                        <div className="flex items-center justify-end">
+                          <span className="text-[8px] font-black text-emerald-600 flex items-center gap-1">
+                            <CheckCircle2 className="w-3 h-3" /> Received by Main Administration
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 

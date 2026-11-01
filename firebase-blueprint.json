@@ -96,6 +96,22 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["userId", "description", "location"]
+    },
+    "feedback": {
+      "title": "Feedback",
+      "description": "User suggestions and feature requests",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "userRole": { "type": "string" },
+        "category": { "type": "string" },
+        "feedbackText": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "feedbackText"]
     }
   },
   "firestore": {
@@ -118,6 +134,10 @@
     "messages": {
       "schema": "message",
       "description": "Collection of messages between tenants"
+    },
+    "feedback": {
+      "schema": "feedback",
+      "description": "User feedback and feature requests"
     }
   }
 }
