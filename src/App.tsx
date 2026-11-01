@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { MapContainer, TileLayer, Marker, useMap, useMapEvents, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
@@ -22,7 +22,7 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
 });
 
-function ZoomControls({ isSatellite, setIsSatellite }: { isSatellite: boolean, setIsSatellite: (val: boolean) => void }) {
+function ZoomControls({ isSatellite, setIsSatellite }: { isSatellite: boolean, setIsSatellite: (val: boolean | ((prev: boolean) => boolean)) => void }) {
   const map = useMap();
   return (
     <div className="flex flex-col gap-2">
@@ -42,9 +42,18 @@ function ZoomControls({ isSatellite, setIsSatellite }: { isSatellite: boolean, s
           <Minus className="w-5 h-5" />
         </button>
         <button
-          onClick={() => { (window as any).playClick?.(); setIsSatellite(!isSatellite); }}
+          onClick={() => {
+            (window as any).playClick?.();
+            const nextVal = !isSatellite;
+            try {
+              localStorage.setItem('timegig_is_satellite', String(nextVal));
+            } catch (e) {
+              console.warn('Satellite storage notice:', e);
+            }
+            setIsSatellite(nextVal);
+          }}
           className={`p-3 hover:bg-gray-50 transition-colors ${isSatellite ? 'text-blue-600 bg-blue-50' : 'text-black'}`}
-          title="Toggle Satellite View"
+          title={isSatellite ? "Satellite View Active (Click for Default Map)" : "Default Map View (Click for Satellite View)"}
         >
           <Layers className="w-5 h-5" />
         </button>
@@ -455,7 +464,19 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
-  const [isSatellite, setIsSatellite] = useState(false);
+  const [isSatellite, setIsSatellite] = useState<boolean>(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        const saved = localStorage.getItem('timegig_is_satellite');
+        if (saved !== null) {
+          return saved === 'true';
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to read satellite view preference:', e);
+    }
+    return false;
+  });
   const [activeTab, setActiveTab] = useState<'map' | 'activation' | 'tenant' | 'referrals' | 'seekers' | 'profile' | 'shop' | 'auth'>('map');
   const [seekerSearchQuery, setSeekerSearchQuery] = useState('');
   const [seekerTradeFilter, setSeekerTradeFilter] = useState('All');
@@ -488,6 +509,18 @@ export default function App() {
     ownerName?: string;
     applicantName?: string;
   } | null>(null);
+
+  // Persist Satellite Map View Preference across logout, login, and page reloads
+  useEffect(() => {
+    try {
+      localStorage.setItem('timegig_is_satellite', String(isSatellite));
+    } catch (e) {
+      console.warn('Failed to save satellite preference to localStorage:', e);
+    }
+    if (user?.uid && db) {
+      updateDoc(doc(db, 'users', user.uid), { isSatellite }).catch(() => null);
+    }
+  }, [isSatellite, user?.uid]);
 
   // Main Tenant Overseer State (timegig2026@gmail.com)
   const isMainTenant = Boolean(user?.email && user.email.trim().toLowerCase() === 'timegig2026@gmail.com');
@@ -759,9 +792,9 @@ export default function App() {
     (typeof window !== 'undefined' && localStorage.getItem('timegig_ref'))
   );
 
-  // When a Referral registers an account, do not show the GiGs icon while registering or before account approval
+  // Referral users and Tenants can explore the GiGs map to see other Tenants' gig posts and local seekers
   const isReferralRegistering = !user && (isReferralFlow || activeTab === 'auth');
-  const showGigsIconForUser = (isMainTenant || userRole === 'Tenant' || isApproved) && !(isReferralUser && !isApproved);
+  const showGigsIconForUser = true;
 
   // Gigs State
   const [gigs, setGigs] = useState<any[]>([]);
@@ -939,6 +972,18 @@ export default function App() {
             isAvailableForWork: data.isAvailableForWork !== false
           });
           if (data.photoURL) setSelfieImage(data.photoURL);
+
+          if (typeof data.isSatellite === 'boolean') {
+            try {
+              const localSaved = localStorage.getItem('timegig_is_satellite');
+              if (localSaved === null) {
+                setIsSatellite(data.isSatellite);
+                localStorage.setItem('timegig_is_satellite', String(data.isSatellite));
+              }
+            } catch (e) {
+              console.warn('Satellite sync notice:', e);
+            }
+          }
           
           // Show welcome back on login if already approved
           if (nowApproved && !sessionStorage.getItem('login_greeted')) {
@@ -1415,95 +1460,171 @@ export default function App() {
     }
   };
 
-  // Seed Sample Verified Seekers into Firestore
-  const seedSampleSeekers = async () => {
-    try {
-      const sampleSeekers = [
-        {
-          uid: 'seeker_sipho_001',
-          name: 'Sipho',
-          surname: 'Mthembu',
-          email: 'sipho.mthembu@example.com',
-          contact: '+27821112233',
-          location: 'Johannesburg, Gauteng',
-          workTrade: 'Plumbing',
-          experience: '8 years of professional residential plumbing, pipe fitting, geyser repairs and blockage clearing.',
-          reference: 'BuildRight Construction (+27823334455)',
-          isApproved: true,
-          isAvailableForWork: true,
-          role: 'User',
-          photoURL: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=300&q=80'
-        },
-        {
-          uid: 'seeker_thandiwe_002',
-          name: 'Thandiwe',
-          surname: 'Khumalo',
-          email: 'thandi.khumalo@example.com',
-          contact: '+27832223344',
-          location: 'Cape Town, Western Cape',
-          workTrade: 'Cleaning',
-          experience: '5 years deep cleaning, Airbnb turnover, office sanitation and home organizing.',
-          reference: 'CapeClean Services (+27834445566)',
-          isApproved: true,
-          isAvailableForWork: true,
-          role: 'User',
-          photoURL: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=300&q=80'
-        },
-        {
-          uid: 'seeker_johan_003',
-          name: 'Johan',
-          surname: 'van der Merwe',
-          email: 'johan.vdm@example.com',
-          contact: '+27843334455',
-          location: 'Pretoria, Gauteng',
-          workTrade: 'Electrician',
-          experience: 'Certified electrician specializing in DB boards, solar inverter wiring and generator installation.',
-          reference: 'Pretoria Power Solutions (+27845556677)',
-          isApproved: true,
-          isAvailableForWork: true,
-          role: 'User',
-          photoURL: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=300&q=80'
-        },
-        {
-          uid: 'seeker_david_004',
-          name: 'David',
-          surname: 'Osei',
-          email: 'david.osei@example.com',
-          contact: '+27854445566',
-          location: 'Durban, KwaZulu-Natal',
-          workTrade: 'Security',
-          experience: '10 years site security, event access control and VIP personal protection.',
-          reference: 'GuardForce SA (+27856667788)',
-          isApproved: true,
-          isAvailableForWork: true,
-          role: 'User',
-          photoURL: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=300&q=80'
-        }
-      ];
+  // Auto-cleanup any demo / mock seekers from Firestore
+  useEffect(() => {
+    if (!db) return;
+    const mockIds = [
+      'seeker_sipho_001',
+      'seeker_thandiwe_002',
+      'seeker_johan_003',
+      'seeker_david_004'
+    ];
+    mockIds.forEach(id => {
+      deleteDoc(doc(db, 'users', id)).catch(() => null);
+    });
+  }, [db]);
 
-      for (const seeker of sampleSeekers) {
-        await setDoc(doc(db, 'users', seeker.uid), seeker, { merge: true });
-      }
-      playSmoothReceiveSound();
-      alert('✅ Sample verified seekers added successfully!');
-    } catch (e) {
-      console.warn('Seed sample seekers notice:', e);
-      setError('Failed to seed sample seekers.');
+  // Identify demo or mock users
+  const isDemoOrMockUser = useCallback((u: any) => {
+    if (!u) return true;
+    const uid = String(u.uid || '');
+    const email = String(u.email || '').toLowerCase();
+    const name = String(u.name || '').toLowerCase();
+    return (
+      uid.startsWith('seeker_') ||
+      uid.startsWith('demo_') ||
+      email.includes('example.com') ||
+      email.includes('@demo.') ||
+      name.includes('demo') ||
+      Boolean(u.isDemo) ||
+      Boolean(u.isMock)
+    );
+  }, []);
+
+  // Real, verified seekers only (no demo or mock users)
+  const filteredSeekers = useMemo(() => {
+    return allUsersList.filter(u => {
+      if (user && u.uid === user.uid) return false;
+      if (isDemoOrMockUser(u)) return false;
+      const searchLower = seekerSearchQuery.trim().toLowerCase();
+      const matchesSearch = !searchLower || 
+        `${u.name || ''} ${u.surname || ''}`.toLowerCase().includes(searchLower) ||
+        (u.location || '').toLowerCase().includes(searchLower) ||
+        (u.workTrade || '').toLowerCase().includes(searchLower) ||
+        (u.experience || '').toLowerCase().includes(searchLower);
+      
+      const matchesTrade = seekerTradeFilter === 'All' || u.workTrade === seekerTradeFilter;
+      return matchesSearch && matchesTrade;
+    });
+  }, [allUsersList, user, isDemoOrMockUser, seekerSearchQuery, seekerTradeFilter]);
+
+  // City and address coordinate mappings for local seekers on the live map
+  const CITY_COORDS: Record<string, [number, number]> = useMemo(() => ({
+    'johannesburg': [-26.2041, 28.0473],
+    'cape town': [-33.9249, 18.4241],
+    'pretoria': [-25.7479, 28.2293],
+    'durban': [-29.8587, 31.0218],
+    'sandton': [-26.1076, 28.0567],
+    'soweto': [-26.2678, 27.8585],
+    'bloemfontein': [-29.0852, 26.1596],
+    'gqeberha': [-33.9608, 25.6022],
+    'port elizabeth': [-33.9608, 25.6022],
+    'centurion': [-25.8603, 28.1895],
+    'midrand': [-25.9992, 28.1263],
+    'randburg': [-26.0936, 27.9947],
+    'bellville': [-33.8943, 18.6294],
+    'stellenbosch': [-33.9321, 18.8602],
+    'east london': [-33.0153, 27.8916],
+    'polokwane': [-23.9045, 29.4688],
+    'nelspruit': [-25.4753, 30.9694],
+    'mbombela': [-25.4753, 30.9694],
+    'kimberley': [-28.7282, 24.7499],
+    'pietermaritzburg': [-29.6006, 30.3794],
+    'kempton park': [-26.1042, 28.2323],
+    'roodepoort': [-26.1625, 27.8725],
+    'boksburg': [-26.2125, 28.2586],
+    'benoni': [-26.1883, 28.3206],
+    'rustenburg': [-25.6676, 27.2421],
+    'george': [-33.9630, 22.4617],
+    'paarl': [-33.7342, 18.9621],
+    'somerset west': [-34.0757, 18.8433],
+    'germiston': [-26.2254, 28.1691],
+    'vanderbijlpark': [-26.7117, 27.8379],
+    'vereeniging': [-26.6731, 27.9261],
+    'witbank': [-25.8728, 29.2332],
+    'emalahleni': [-25.8728, 29.2332],
+    'potchefstroom': [-26.7145, 27.0970],
+    'welkom': [-27.9831, 26.7351],
+    'umhlanga': [-29.7276, 31.0854],
+    'ballito': [-29.5390, 31.2144]
+  }), []);
+
+  const getUserCoordinates = useCallback((u: any): [number, number] | null => {
+    if (Array.isArray(u.coordinates) && u.coordinates.length === 2) {
+      const lat = Number(u.coordinates[0]);
+      const lng = Number(u.coordinates[1]);
+      if (validateCoords(lat, lng)) return [lat, lng];
     }
-  };
+    if (Array.isArray(u.locationCoords) && u.locationCoords.length === 2) {
+      const lat = Number(u.locationCoords[0]);
+      const lng = Number(u.locationCoords[1]);
+      if (validateCoords(lat, lng)) return [lat, lng];
+    }
+    if (typeof u.location === 'string' && u.location.trim().length > 0) {
+      const match = u.location.match(/(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)/);
+      if (match) {
+        const lat = parseFloat(match[1]);
+        const lng = parseFloat(match[2]);
+        if (validateCoords(lat, lng)) return [lat, lng];
+      }
+      const locLower = u.location.toLowerCase();
+      for (const [city, coords] of Object.entries(CITY_COORDS)) {
+        if (locLower.includes(city)) {
+          return coords;
+        }
+      }
+      if (locLower.includes('gauteng')) return [-26.15, 28.05];
+      if (locLower.includes('western cape')) return [-33.92, 18.42];
+      if (locLower.includes('kwazulu') || locLower.includes('kzn')) return [-29.85, 31.02];
+      if (locLower.includes('eastern cape')) return [-33.96, 25.60];
+      if (locLower.includes('free state')) return [-29.08, 26.15];
+      if (locLower.includes('mpumalanga')) return [-25.47, 30.96];
+      if (locLower.includes('limpopo')) return [-23.90, 29.46];
+      if (locLower.includes('north west')) return [-25.66, 27.24];
+      if (locLower.includes('northern cape')) return [-28.72, 24.74];
+    }
+    // Fallback if seeker has trade or is available: derive stable coords in SA based on uid
+    if (u.workTrade || u.isAvailableForWork !== false) {
+      const uidStr = String(u.uid || 'seeker');
+      let hash = 0;
+      for (let i = 0; i < uidStr.length; i++) {
+        hash = (hash << 5) - hash + uidStr.charCodeAt(i);
+        hash |= 0;
+      }
+      const hubs: [number, number][] = [
+        [-26.2041, 28.0473], // Johannesburg
+        [-33.9249, 18.4241], // Cape Town
+        [-25.7479, 28.2293], // Pretoria
+        [-29.8587, 31.0218], // Durban
+      ];
+      const hub = hubs[Math.abs(hash) % hubs.length];
+      const jitterLat = ((Math.abs(hash * 31) % 1000) / 10000) - 0.05;
+      const jitterLng = ((Math.abs(hash * 17) % 1000) / 10000) - 0.05;
+      return [hub[0] + jitterLat, hub[1] + jitterLng];
+    }
+    return null;
+  }, [CITY_COORDS]);
 
-  const filteredSeekers = allUsersList.filter(u => {
-    if (user && u.uid === user.uid) return false;
-    const searchLower = seekerSearchQuery.trim().toLowerCase();
-    const matchesSearch = !searchLower || 
-      `${u.name || ''} ${u.surname || ''}`.toLowerCase().includes(searchLower) ||
-      (u.location || '').toLowerCase().includes(searchLower) ||
-      (u.workTrade || '').toLowerCase().includes(searchLower) ||
-      (u.experience || '').toLowerCase().includes(searchLower);
-    
-    const matchesTrade = seekerTradeFilter === 'All' || u.workTrade === seekerTradeFilter;
-    return matchesSearch && matchesTrade;
-  });
+  // Real registered Seekers with valid locations to display on the live map
+  const seekersOnMap = useMemo(() => {
+    return allUsersList.filter(u => {
+      if (user && u.uid === user.uid) return false;
+      if (isDemoOrMockUser(u)) return false;
+      const hasTradeOrAvailable = Boolean(u.workTrade || u.isAvailableForWork !== false);
+      if (!hasTradeOrAvailable) return false;
+      return getUserCoordinates(u) !== null;
+    });
+  }, [allUsersList, user, isDemoOrMockUser, getUserCoordinates]);
+
+  // Automatically sync user's live position to their Firestore profile so other Tenants see them on the map
+  useEffect(() => {
+    if (user && position && db) {
+      updateDoc(doc(db, 'users', user.uid), {
+        coordinates: position,
+        lastActive: serverTimestamp()
+      }).catch(() => null);
+    }
+  }, [user, position]);
 
   const filteredTenants = allTenants.filter(t => {
     if (overseerFilter === 'delinquent') return !t.isTakenOver && getTenantMetrics(t).isDelinquent;
@@ -2631,8 +2752,8 @@ export default function App() {
                 position={position} 
                 icon={L.divIcon({
                   className: 'bg-transparent',
-                  html: `<div class="w-10 h-10 rounded-full border-4 border-blue-500 shadow-lg overflow-hidden ${gigs.some(g => g.userId === user?.uid) ? 'border-emerald-500 ring-2 ring-emerald-300' : ''}">
-                    <img src="${selfieImage || ''}" class="w-full h-full object-cover" />
+                  html: `<div class="w-10 h-10 rounded-full border-4 border-blue-500 shadow-lg overflow-hidden bg-white flex items-center justify-center ${gigs.some(g => g.userId === user?.uid) ? 'border-emerald-500 ring-2 ring-emerald-300' : ''}">
+                    ${(selfieImage || user?.photoURL) ? `<img src="${selfieImage || user?.photoURL}" class="w-full h-full object-cover" />` : `<span class="text-xs font-black text-blue-600">${(profileData.name || user?.displayName || 'Me')[0]}</span>`}
                   </div>`,
                   iconSize: [40, 40],
                   iconAnchor: [20, 20]
@@ -2678,36 +2799,148 @@ export default function App() {
                 </Popup>
               </Marker>
             )}
-            {gigs.map(gig => (
-              <Marker 
-                key={gig.id} 
-                position={[gig.location[0], gig.location[1]]}
-                icon={L.divIcon({
-                  className: 'bg-transparent',
-                  html: `
-                    <div class="relative w-10 h-10 rounded-full border-2 border-white shadow-lg overflow-hidden ring-2 ring-blue-500 animate-pulse">
-                      <img src="${selfieImage || ''}" class="w-full h-full object-cover" />
+            {/* Gig Posts on the Map (Tenant Posts & Available Gigs) */}
+            {gigs.map(gig => {
+              if (!gig.location || !Array.isArray(gig.location) || gig.location.length < 2) return null;
+              const posterUser = allUsersList.find(u => u.uid === gig.userId);
+              const isTenantPost = gig.userRole === 'Tenant' || gig.isTenant || gig.userEmail === 'timegig2026@gmail.com' || posterUser?.role === 'Tenant' || posterUser?.email === 'timegig2026@gmail.com';
+              const isMyGig = gig.userId === user?.uid;
+              const posterName = gig.userName || (posterUser ? `${posterUser.name || ''} ${posterUser.surname || ''}`.trim() : '');
+              const posterPhoto = gig.userPhoto || posterUser?.photoURL || null;
+              return (
+                <Marker 
+                  key={gig.id} 
+                  position={[gig.location[0], gig.location[1]]}
+                  icon={L.divIcon({
+                    className: 'bg-transparent',
+                    html: `
+                      <div class="relative w-11 h-11 rounded-2xl bg-black border-2 ${isTenantPost ? 'border-amber-400 ring-2 ring-amber-400/50' : 'border-white ring-2 ring-emerald-400/50'} shadow-xl flex items-center justify-center hover:scale-110 transition-transform cursor-pointer">
+                        <div class="w-full h-full rounded-2xl overflow-hidden flex items-center justify-center bg-gray-900 text-white">
+                          ${posterPhoto ? `<img src="${posterPhoto}" class="w-full h-full object-cover" />` : `<span class="text-base">${isTenantPost ? '👑' : '💼'}</span>`}
+                        </div>
+                        <span class="absolute -top-1.5 -right-1.5 ${isTenantPost ? 'bg-amber-400 text-black' : 'bg-emerald-500 text-white'} text-[7px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-tight shadow">
+                          ${isTenantPost ? 'Tenant' : 'Gig'}
+                        </span>
+                      </div>
+                    `,
+                    iconSize: [44, 44],
+                    iconAnchor: [22, 22]
+                  })}
+                >
+                  <Popup className="rounded-2xl shadow-xl">
+                    <div className="p-3 space-y-2 text-left max-w-[240px]">
+                      <div className="flex items-center justify-between gap-1 border-b border-gray-100 pb-1.5">
+                        <span className={`text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider ${isTenantPost ? 'bg-amber-100 text-amber-900' : 'bg-emerald-100 text-emerald-800'}`}>
+                          {isTenantPost ? '👑 Tenant Gig Post' : '💼 Available Gig'}
+                        </span>
+                        {gig.budget && <span className="text-xs font-black text-emerald-600">R{gig.budget}</span>}
+                      </div>
+                      <div>
+                        <h3 className="font-black text-sm text-black leading-snug">{gig.description}</h3>
+                        {posterName && (
+                          <p className="text-[10px] text-gray-500 font-bold mt-1">
+                            By: <span className="text-black font-black">{posterName}</span> {isTenantPost ? '(Tenant)' : ''}
+                          </p>
+                        )}
+                        {gig.contactNumber && (
+                          <p className="text-[10px] text-gray-500 font-medium">
+                            Contact: <span className="text-black font-bold">{gig.contactNumber}</span>
+                          </p>
+                        )}
+                      </div>
+                      <button 
+                        onClick={() => setSelectedGigView(gig)}
+                        className="w-full py-2 bg-black hover:bg-gray-900 text-white font-black rounded-xl text-xs uppercase tracking-wider transition-all active:scale-95 shadow"
+                      >
+                        {isMyGig ? 'Manage My Gig' : 'View Gig Details'}
+                      </button>
                     </div>
-                  `,
-                  iconSize: [40, 40],
-                  iconAnchor: [20, 20]
-                })}
-              >
-                <Popup className="rounded-2xl shadow-xl">
-                  <div className="p-2 space-y-2">
-                    <h3 className="font-black text-lg">{gig.description}</h3>
-                    <p><strong>Budget:</strong> R{gig.budget}</p>
-                    <p><strong>Contact:</strong> {gig.contactNumber}</p>
-                    <button 
-                      onClick={() => setSelectedGigView(gig)}
-                      className="w-full py-2 bg-black text-white font-bold rounded-lg text-sm"
-                    >
-                      View Details
-                    </button>
-                  </div>
-                </Popup>
-              </Marker>
-            ))}
+                  </Popup>
+                </Marker>
+              );
+            })}
+
+            {/* Real Seekers on the Live Map */}
+            {seekersOnMap.map((seeker: any) => {
+              const coords = getUserCoordinates(seeker);
+              if (!coords) return null;
+              return (
+                <Marker 
+                  key={`seeker-${seeker.uid}`} 
+                  position={coords}
+                  icon={L.divIcon({
+                    className: 'bg-transparent',
+                    html: `
+                      <div class="relative w-11 h-11 rounded-full bg-white border-2 border-blue-600 shadow-xl flex items-center justify-center ring-2 ring-blue-400/40 hover:scale-110 transition-transform cursor-pointer">
+                        <div class="w-full h-full rounded-full overflow-hidden flex items-center justify-center bg-gray-100 text-black">
+                          ${seeker.photoURL ? `<img src="${seeker.photoURL}" class="w-full h-full object-cover" />` : `<span class="text-xs font-black">${(seeker.name || 'S')[0]}</span>`}
+                        </div>
+                        <span class="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full border-2 border-white ${seeker.isAvailableForWork !== false ? 'bg-emerald-500' : 'bg-gray-400'}" title="${seeker.isAvailableForWork !== false ? 'Available' : 'Busy'}"></span>
+                      </div>
+                    `,
+                    iconSize: [44, 44],
+                    iconAnchor: [22, 22]
+                  })}
+                >
+                  <Popup className="rounded-2xl shadow-xl">
+                    <div className="p-3 space-y-2 text-left max-w-[240px]">
+                      <div className="flex items-center gap-2.5 border-b border-gray-100 pb-2">
+                        <div className="w-10 h-10 rounded-xl overflow-hidden bg-gray-100 border border-gray-200 shrink-0">
+                          {seeker.photoURL ? (
+                            <img src={seeker.photoURL} alt={seeker.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center font-black text-gray-500">
+                              {(seeker.name || 'S')[0]}
+                            </div>
+                          )}
+                        </div>
+                        <div className="truncate">
+                          <h4 className="font-black text-black text-sm truncate flex items-center gap-1">
+                            {seeker.name} {seeker.surname || ''}
+                            <ShieldCheck className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                          </h4>
+                          <span className="text-[9px] font-black uppercase bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full inline-block mt-0.5">
+                            {seeker.workTrade || 'Job Seeker'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {seeker.experience && (
+                        <p className="text-[11px] text-gray-600 line-clamp-2 leading-relaxed font-medium bg-gray-50 p-2 rounded-lg">
+                          "{seeker.experience}"
+                        </p>
+                      )}
+
+                      <div className="flex items-center justify-between text-[10px]">
+                        <span className="text-gray-400 font-bold uppercase">Status</span>
+                        <span className={`font-black uppercase text-[9px] px-2 py-0.5 rounded-full ${seeker.isAvailableForWork !== false ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-gray-600'}`}>
+                          {seeker.isAvailableForWork !== false ? 'Available for Work' : 'Busy'}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-1.5 pt-1">
+                        {seeker.contact ? (
+                          <a
+                            href={`https://wa.me/${seeker.contact.replace(/[^0-9]/g, '')}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg font-black text-[10px] uppercase tracking-wider flex items-center justify-center gap-1 shadow-sm transition-all active:scale-95 text-center"
+                          >
+                            WhatsApp
+                          </a>
+                        ) : null}
+                        <button
+                          onClick={() => setOfferGigModalSeeker(seeker)}
+                          className={`py-2 bg-black hover:bg-gray-900 text-white rounded-lg font-black text-[10px] uppercase tracking-wider flex items-center justify-center gap-1 shadow-sm transition-all active:scale-95 ${!seeker.contact ? 'col-span-2' : ''}`}
+                        >
+                          Offer Gig
+                        </button>
+                      </div>
+                    </div>
+                  </Popup>
+                </Marker>
+              );
+            })}
           </MapContainer>
         </div>
 
@@ -3961,16 +4194,16 @@ export default function App() {
           <div className="flex-1 flex flex-col p-6 pt-12 overflow-y-auto no-scrollbar">
             {referralView ? (
               <div className="max-w-md mx-auto w-full flex-1 flex flex-col pb-20 animate-in fade-in slide-in-from-right-4 duration-300">
-                <button onClick={() => setReferralView(null)} className="flex items-center gap-2 text-gray-300 font-bold uppercase tracking-widest text-[10px] mb-6 active:scale-95 transition-all">
+                <button onClick={() => setReferralView(null)} className="flex items-center gap-2 text-white/90 hover:text-white font-bold uppercase tracking-widest text-[10px] mb-6 active:scale-95 transition-all">
                   <ChevronLeft className="w-4 h-4" /> Back to Referral List
                 </button>
-                <div className="bg-black/40 backdrop-blur-md rounded-[2.5rem] p-6 shadow-xl border border-white/10 space-y-6 text-white">
-                  <div className="flex items-center gap-4 border-b border-white/10 pb-6">
-                    <img src={referralView.selfie} className="w-20 h-20 rounded-3xl object-cover shadow-md border border-white/20" alt="" />
+                <div className="bg-white rounded-[2.5rem] p-6 shadow-2xl border border-gray-100 space-y-6 text-black">
+                  <div className="flex items-center gap-4 border-b border-gray-100 pb-6">
+                    <img src={referralView.selfie} className="w-20 h-20 rounded-3xl object-cover shadow-md border border-gray-200" alt="" />
                     <div>
                       <span className={`text-[9px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-widest mb-1 inline-block ${referralView.type === 'Tenant' ? 'bg-emerald-500 text-white' : 'bg-blue-500 text-white'}`}>{referralView.type}</span>
-                      <h3 className="text-xl font-black text-white">{referralView.name}</h3>
-                      <p className="text-xs text-gray-400 font-bold">{referralView.date}</p>
+                      <h3 className="text-xl font-black text-black">{referralView.name}</h3>
+                      <p className="text-xs text-gray-500 font-bold">{referralView.date}</p>
                     </div>
                   </div>
 
@@ -4063,18 +4296,18 @@ export default function App() {
             ) : (
               <div className="max-w-md mx-auto w-full flex-1 flex flex-col pb-20 animate-in fade-in slide-in-from-left-4 duration-300">
                 <div className="text-center relative mb-6">
-                  <h2 className="text-3xl font-black text-black tracking-tight mb-1">Total Referrals</h2>
-                  <p className="text-gray-500 text-xs font-medium">Review Referral Applications & Subscriptions</p>
+                  <h2 className="text-3xl font-black text-white tracking-tight mb-1">Total Referrals</h2>
+                  <p className="text-gray-300 text-xs font-medium">Review Referral Applications & Subscriptions</p>
                 </div>
 
                 {/* Referral Link Copy & Share */}
-                <div className="bg-black/40 backdrop-blur-md rounded-[2rem] p-5 shadow-xl border border-white/10 space-y-3 mb-6 text-white">
-                  <span className="text-gray-300 text-[10px] font-black uppercase tracking-widest block">Your Referral Link</span>
-                  <div className="flex items-center gap-2 bg-white/10 backdrop-blur-md p-2.5 rounded-xl border border-white/20">
+                <div className="bg-white rounded-[2rem] p-5 shadow-xl border border-gray-100 space-y-3 mb-6 text-black">
+                  <span className="text-gray-500 text-[10px] font-black uppercase tracking-widest block">Your Referral Link</span>
+                  <div className="flex items-center gap-2 bg-gray-50 p-2.5 rounded-xl border border-gray-200">
                     <input 
                       readOnly 
                       value={`${window.location.origin}${window.location.pathname}?ref=${user?.uid}`} 
-                      className="flex-1 bg-transparent text-white text-xs font-mono outline-none placeholder-gray-400"
+                      className="flex-1 bg-transparent text-black text-xs font-mono outline-none"
                     />
                     <button 
                       onClick={() => {
@@ -4082,7 +4315,7 @@ export default function App() {
                         playSmoothReceiveSound();
                         alert('✅ Referral link copied!');
                       }}
-                      className="p-2 bg-white text-black rounded-lg transition-all active:scale-90"
+                      className="p-2 bg-black text-white rounded-lg transition-all active:scale-90"
                     >
                       <Link2 className="w-4 h-4" />
                     </button>
@@ -4109,10 +4342,10 @@ export default function App() {
                     Applications ({referrals.length})
                   </h3>
                   {referrals.length === 0 ? (
-                    <div className="text-center py-16 bg-black/40 backdrop-blur-md rounded-[2rem] border border-dashed border-white/20 space-y-2 text-white">
+                    <div className="text-center py-16 bg-white rounded-[2rem] border border-dashed border-gray-200 space-y-2 text-black shadow-xl">
                       <Users className="w-8 h-8 text-gray-400 mx-auto" />
-                      <p className="text-gray-300 font-bold uppercase tracking-widest text-xs">No referral applications found</p>
-                      <p className="text-gray-400 text-[11px]">Share your link above to start receiving tenant & user signup commissions!</p>
+                      <p className="text-gray-700 font-bold uppercase tracking-widest text-xs">No referral applications found</p>
+                      <p className="text-gray-500 text-[11px]">Share your link above to start receiving tenant & user signup commissions!</p>
                     </div>
                   ) : referrals.map(ref => (
                     <button 
@@ -4125,16 +4358,16 @@ export default function App() {
                           } catch (err) { console.warn(err); }
                         }
                       }} 
-                      className={`w-full bg-black/40 backdrop-blur-md p-4 rounded-3xl border flex items-center gap-4 active:scale-[0.98] transition-all hover:border-white/30 relative overflow-hidden text-white ${!ref.isViewed ? 'border-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.3)]' : 'border-white/10 shadow-xl'}`}
+                      className={`w-full bg-white p-4 rounded-3xl border flex items-center gap-4 active:scale-[0.98] transition-all hover:border-gray-300 relative overflow-hidden text-black ${!ref.isViewed ? 'border-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.25)]' : 'border-gray-100 shadow-xl'}`}
                     >
                       {!ref.isViewed && (
                         <div className="absolute top-0 right-0 w-8 h-8 bg-amber-500/20 rounded-bl-2xl flex items-center justify-center">
                           <div className="w-2 h-2 bg-amber-400 rounded-full animate-ping" />
                         </div>
                       )}
-                      <img src={ref.selfie} className="w-14 h-14 rounded-2xl object-cover shadow-md border border-white/20" alt="" />
+                      <img src={ref.selfie} className="w-14 h-14 rounded-2xl object-cover shadow-md border border-gray-200" alt="" />
                       <div className="flex-1 text-left">
-                        <h4 className="font-black text-white">{ref.name}</h4>
+                        <h4 className="font-black text-black">{ref.name}</h4>
                         <div className="flex flex-wrap items-center gap-1.5 mt-1">
                           <span className={`text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-widest ${ref.type === 'Tenant' ? 'bg-emerald-500 text-white' : 'bg-blue-500 text-white'}`}>{ref.type}</span>
                           <span className={`text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-widest ${ref.status === 'active' || ref.status === 'approved' ? 'bg-emerald-600 text-white' : ref.status === 'frozen' ? 'bg-red-600 text-white' : 'bg-amber-500 text-white'}`}>
@@ -4183,17 +4416,17 @@ export default function App() {
 
               {/* Search Bar & Category Filters (Compact) */}
               <div className="space-y-2">
-                <div className="flex items-center gap-2 bg-white/10 backdrop-blur-md p-2.5 rounded-xl border border-white/20 shadow-sm focus-within:ring-2 focus-within:ring-white/30 transition-all">
-                  <Search className="w-3.5 h-3.5 text-gray-300 shrink-0" />
+                <div className="flex items-center gap-2 bg-white p-2.5 rounded-xl border border-gray-200 shadow-sm focus-within:ring-2 focus-within:ring-black/20 transition-all">
+                  <Search className="w-3.5 h-3.5 text-gray-400 shrink-0" />
                   <input
                     type="text"
                     placeholder="Search name, trade, location..."
                     value={seekerSearchQuery}
                     onChange={(e) => setSeekerSearchQuery(e.target.value)}
-                    className="w-full bg-transparent text-[11px] font-bold text-white placeholder-gray-400 outline-none"
+                    className="w-full bg-transparent text-[11px] font-bold text-black placeholder-gray-400 outline-none"
                   />
                   {seekerSearchQuery && (
-                    <button onClick={() => setSeekerSearchQuery('')} className="p-1 text-gray-300 hover:text-white">
+                    <button onClick={() => setSeekerSearchQuery('')} className="p-1 text-gray-400 hover:text-black">
                       <X className="w-3 h-3" />
                     </button>
                   )}
@@ -4202,7 +4435,7 @@ export default function App() {
                 <div className="flex items-center gap-1 overflow-x-auto no-scrollbar pb-0.5 text-[9px] font-black uppercase tracking-wider">
                   <button
                     onClick={() => setSeekerTradeFilter('All')}
-                    className={`px-2.5 py-1 rounded-lg transition-all whitespace-nowrap ${seekerTradeFilter === 'All' ? 'bg-white text-black shadow-md' : 'bg-white/10 text-gray-300 border border-white/10 hover:bg-white/20'}`}
+                    className={`px-2.5 py-1 rounded-lg transition-all whitespace-nowrap ${seekerTradeFilter === 'All' ? 'bg-black text-white shadow-md' : 'bg-white text-gray-800 border border-gray-200 hover:bg-gray-100'}`}
                   >
                     All ({allUsersList.filter(u => !user || u.uid !== user.uid).length})
                   </button>
@@ -4210,7 +4443,7 @@ export default function App() {
                     <button
                       key={t}
                       onClick={() => setSeekerTradeFilter(t)}
-                      className={`px-2.5 py-1 rounded-lg transition-all whitespace-nowrap ${seekerTradeFilter === t ? 'bg-white text-black shadow-md' : 'bg-white/10 text-gray-300 border border-white/10 hover:bg-white/20'}`}
+                      className={`px-2.5 py-1 rounded-lg transition-all whitespace-nowrap ${seekerTradeFilter === t ? 'bg-black text-white shadow-md' : 'bg-white text-gray-800 border border-gray-200 hover:bg-gray-100'}`}
                     >
                       {t}
                     </button>
@@ -4224,24 +4457,19 @@ export default function App() {
           <div className="flex-1 overflow-y-auto no-scrollbar p-4">
             <div className="max-w-md mx-auto w-full space-y-3 pb-24">
 
-              {/* Empty state & Seed Button */}
+              {/* Empty state */}
               {filteredSeekers.length === 0 && (
-                <div className="p-8 text-center bg-black/40 backdrop-blur-md rounded-3xl border border-dashed border-white/20 space-y-3 text-white">
+                <div className="p-8 text-center bg-white rounded-3xl border border-dashed border-gray-200 space-y-2 text-black shadow-xl">
                   <Users className="w-8 h-8 text-gray-400 mx-auto" />
-                  <p className="text-gray-300 font-bold text-xs">No seekers match your search or filter.</p>
-                  <button
-                    onClick={seedSampleSeekers}
-                    className="py-3 px-5 bg-white text-black rounded-xl text-xs font-black uppercase tracking-wider shadow active:scale-95 transition-all"
-                  >
-                    Seed Sample Verified Seekers
-                  </button>
+                  <p className="text-gray-900 font-bold text-sm">No registered seekers found</p>
+                  <p className="text-gray-500 font-medium text-xs">As new verified job seekers register and set their trade or availability, they will appear here live.</p>
                 </div>
               )}
 
               {/* Seekers Cards Grid */}
               <div className="space-y-4">
-                {filteredSeekers.map((s) => (
-                  <div key={s.uid} className="bg-black/40 backdrop-blur-md rounded-[2rem] p-5 border border-white/10 shadow-xl space-y-4 text-white hover:border-white/30 transition-all">
+                {filteredSeekers.map((s: any) => (
+                  <div key={s.uid} className="bg-white rounded-[2rem] p-5 border border-gray-100 shadow-xl space-y-4 text-black hover:shadow-2xl hover:border-gray-200 transition-all">
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-center gap-3">
                         <div className="relative">
@@ -4982,34 +5210,44 @@ export default function App() {
                 {gigs.length === 0 ? (
                   <div className="p-8 text-center text-gray-400 text-[10px] font-bold uppercase">No Nearby Gigs Available</div>
                 ) : (
-                  gigs.map(gig => (
-                    <div key={gig.id} className="p-3.5 rounded-2xl bg-white/80 backdrop-blur-md border border-white/20 shadow-sm space-y-2">
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-center gap-2">
-                          <div className="w-7 h-7 rounded-xl bg-emerald-500 text-white flex items-center justify-center font-black">
-                            <MapPin className="w-3.5 h-3.5" />
+                  gigs.map(gig => {
+                    const posterUser = allUsersList.find(u => u.uid === gig.userId);
+                    const isTenantPost = gig.userRole === 'Tenant' || gig.isTenant || gig.userEmail === 'timegig2026@gmail.com' || posterUser?.role === 'Tenant' || posterUser?.email === 'timegig2026@gmail.com';
+                    const posterName = gig.userName || (posterUser ? `${posterUser.name || ''} ${posterUser.surname || ''}`.trim() : '');
+                    return (
+                      <div key={gig.id} className="p-3.5 rounded-2xl bg-white border border-gray-100 shadow-sm space-y-2">
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-center gap-2">
+                            <div className={`w-8 h-8 rounded-xl ${isTenantPost ? 'bg-amber-400 text-black' : 'bg-emerald-500 text-white'} flex items-center justify-center font-black shadow-sm`}>
+                              {isTenantPost ? '👑' : <MapPin className="w-4 h-4" />}
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-1.5">
+                                <h4 className="font-black text-xs text-black">{gig.description || 'Gig Offer'}</h4>
+                                {isTenantPost && (
+                                  <span className="text-[8px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded-full font-black uppercase">Tenant</span>
+                                )}
+                              </div>
+                              <p className="text-[9px] text-emerald-600 font-bold">Budget: R{gig.budget || 0} {posterName ? `• By ${posterName}` : ''}</p>
+                            </div>
                           </div>
-                          <div>
-                            <h4 className="font-black text-xs text-black">{gig.description || 'Gig Offer'}</h4>
-                            <p className="text-[9px] text-emerald-600 font-bold">Budget: R{gig.budget || 0}</p>
-                          </div>
+                          <button
+                            onClick={() => {
+                              if (gig.location) {
+                                setPosition(gig.location);
+                                setActiveTab('map');
+                                setShowInbox(false);
+                              }
+                            }}
+                            className="px-3 py-1.5 bg-black text-white rounded-xl text-[9px] font-black uppercase tracking-wider active:scale-95 transition-all"
+                          >
+                            View on Map
+                          </button>
                         </div>
-                        <button
-                          onClick={() => {
-                            if (gig.location) {
-                              setPosition(gig.location);
-                              setActiveTab('map');
-                              setShowInbox(false);
-                            }
-                          }}
-                          className="px-3 py-1.5 bg-black text-white rounded-xl text-[9px] font-black uppercase tracking-wider active:scale-95 transition-all"
-                        >
-                          View on Map
-                        </button>
+                        <p className="text-[10px] text-gray-600">{gig.contactNumber ? `Contact: ${gig.contactNumber}` : ''}</p>
                       </div>
-                      <p className="text-[10px] text-gray-600">{gig.contactNumber ? `Contact: ${gig.contactNumber}` : ''}</p>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             ) : mainTenantInboxTab === 'direct' ? (
@@ -5617,6 +5855,36 @@ export default function App() {
               </div>
             </div>
 
+            {/* Map View Preference */}
+            <div className="space-y-2.5">
+              <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest block">Map Preference</span>
+              <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100 flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <Layers className={`w-5 h-5 ${isSatellite ? 'text-blue-600' : 'text-gray-400'}`} />
+                  <div>
+                    <p className="text-xs font-bold text-black">Satellite Map View</p>
+                    <p className="text-[10px] text-gray-500">Persists across logout, login & reloads</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => {
+                    playSmoothClickSound();
+                    const nextVal = !isSatellite;
+                    try {
+                      localStorage.setItem('timegig_is_satellite', String(nextVal));
+                    } catch (e) {
+                      console.warn('Satellite storage error:', e);
+                    }
+                    setIsSatellite(nextVal);
+                  }}
+                  className={`w-12 h-6 rounded-full transition-colors relative p-0.5 ${isSatellite ? 'bg-blue-600' : 'bg-gray-300'}`}
+                  title="Toggle Satellite View"
+                >
+                  <div className={`w-5 h-5 rounded-full bg-white transition-transform ${isSatellite ? 'translate-x-6' : 'translate-x-0'}`} />
+                </button>
+              </div>
+            </div>
+
             {/* Account Details */}
             <div className="space-y-2.5">
               <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest block">Account Overview</span>
@@ -5702,20 +5970,30 @@ export default function App() {
                   </button>
                 </>
               ) : (
-                <button 
-                  onClick={() => {
-                    setShowWelcomeModal(false);
-                    sessionStorage.setItem('welcome_dismissed', 'true');
-                    if (!isApproved) {
-                      setActiveTab('activation');
-                    } else {
+                <div className="space-y-2">
+                  <button 
+                    onClick={() => {
+                      setShowWelcomeModal(false);
+                      sessionStorage.setItem('welcome_dismissed', 'true');
                       setActiveTab('map');
-                    }
-                  }}
-                  className="w-full py-4 bg-black text-white font-black rounded-2xl active:scale-95 transition-all text-xs uppercase tracking-widest shadow-xl"
-                >
-                  {!isApproved ? 'Get Activated Now' : 'Explore GiGs Map'}
-                </button>
+                    }}
+                    className="w-full py-4 bg-black text-white font-black rounded-2xl active:scale-95 transition-all text-xs uppercase tracking-widest shadow-xl flex items-center justify-center gap-2"
+                  >
+                    <LocateFixed className="w-4 h-4 text-white" /> Explore GiGs Map & Seekers
+                  </button>
+                  {!isApproved && (
+                    <button 
+                      onClick={() => {
+                        setShowWelcomeModal(false);
+                        sessionStorage.setItem('welcome_dismissed', 'true');
+                        setActiveTab('activation');
+                      }}
+                      className="w-full py-3 bg-gray-100 text-black font-bold rounded-2xl active:scale-95 transition-all text-xs uppercase tracking-wider"
+                    >
+                      Complete Account Activation
+                    </button>
+                  )}
+                </div>
               )}
             </div>
           </div>
@@ -5785,8 +6063,15 @@ export default function App() {
                 }
 
                 try {
+                  const isTenantUser = userRole === 'Tenant' || isMainTenant;
+                  const posterName = profileData.name ? `${profileData.name} ${profileData.surname || ''}`.trim() : (user?.displayName || (isMainTenant ? 'TimeGiG Admin' : 'Tenant'));
                   const gigData = {
                     userId: user?.uid,
+                    userName: posterName,
+                    userRole: userRole || (isMainTenant ? 'Tenant' : 'User'),
+                    isTenant: isTenantUser,
+                    userPhoto: selfieImage || user?.photoURL || null,
+                    userEmail: user?.email || '',
                     description: desc,
                     budget: budget,
                     contactNumber: contact,
