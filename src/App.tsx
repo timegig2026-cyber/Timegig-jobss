@@ -133,6 +133,44 @@ interface TenantAccount {
   originalTenantName?: string;
 }
 
+function AccountStepsIndicator({ currentStep }: { currentStep: number }) {
+  const steps = [
+    { num: 1, label: 'Register' },
+    { num: 2, label: 'Fill Profile' },
+    { num: 3, label: 'Upload Selfie & ID' },
+    { num: 4, label: 'Activated' }
+  ];
+
+  return (
+    <div className="w-full bg-white/90 backdrop-blur-md rounded-2xl p-3 shadow-sm border border-gray-100 mb-3 shrink-0">
+      <div className="text-[9px] font-black uppercase tracking-widest text-gray-500 mb-2 text-center">Account Registration & Activation Steps</div>
+      <div className="flex items-center justify-between gap-1 overflow-x-auto no-scrollbar">
+        {steps.map((s, idx) => {
+          const isCompleted = currentStep > s.num;
+          const isCurrent = currentStep === s.num;
+          return (
+            <div key={s.num} className="flex items-center gap-1 flex-1 min-w-[70px] text-center">
+              <div className="flex flex-col items-center w-full">
+                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black transition-all ${
+                  isCompleted ? 'bg-emerald-500 text-white' : isCurrent ? 'bg-black text-white ring-2 ring-emerald-400' : 'bg-gray-100 text-gray-400'
+                }`}>
+                  {isCompleted ? '✓' : s.num}
+                </div>
+                <span className={`text-[8px] font-black uppercase mt-1 truncate w-full ${isCurrent ? 'text-black font-black' : isCompleted ? 'text-emerald-600' : 'text-gray-400'}`}>
+                  {s.label}
+                </span>
+              </div>
+              {idx < steps.length - 1 && (
+                <div className={`h-0.5 flex-1 mx-0.5 ${currentStep > s.num ? 'bg-emerald-500' : 'bg-gray-200'}`} />
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function useSubscriptionCountdown(expiresAt: any) {
   const [timeLeft, setTimeLeft] = useState<{
     days: number;
@@ -3180,6 +3218,7 @@ export default function App() {
         {/* Activation View */}
         <div className={`absolute inset-0 bg-gray-50/90 backdrop-blur-xl z-20 transition-transform duration-300 flex flex-col p-3 pt-4 overflow-hidden ${activeTab === 'activation' ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0 pointer-events-none'}`}>
           <div className="max-w-md mx-auto w-full flex-1 flex flex-col gap-3 h-full max-h-full overflow-hidden pb-2">
+            <AccountStepsIndicator currentStep={!user ? 1 : !isProfileComplete() ? 2 : !isApproved ? 3 : 4} />
             {verificationStep === null ? (
               <>
                 <div className="text-center py-2">
@@ -4335,6 +4374,7 @@ export default function App() {
             </div>
 
             <div className="p-6 space-y-6 max-w-md mx-auto w-full">
+              <AccountStepsIndicator currentStep={!user ? 1 : !isProfileComplete() ? 2 : !isApproved ? 3 : 4} />
               {/* Referral Progress Section (For Tenants) */}
               {(userRole === 'Tenant' || isMainTenant) && (
                 <div className="bg-blue-900/40 backdrop-blur-md p-6 rounded-[2rem] border border-blue-500/20 space-y-4">
@@ -4935,16 +4975,6 @@ export default function App() {
             </p>
           </div>
 
-          {/* Compact Locked Notice */}
-          <div className="w-full bg-gray-50 px-3 py-2 rounded-xl border border-gray-200 text-left space-y-1">
-            <div className="flex items-center justify-between text-[9px] font-black text-black uppercase tracking-wider">
-              <span>App Locked • Activation Process</span>
-              <Lock className="w-3 h-3 text-red-500" />
-            </div>
-            <p className="text-[10px] text-gray-600 font-bold leading-tight">
-              1. Register → 2. Fill Profile → 3. Upload Selfie & ID → 4. Activated
-            </p>
-          </div>
 
           {user ? (
             <div className="w-full space-y-3">
