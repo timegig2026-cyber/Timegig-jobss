@@ -73,6 +73,26 @@ function RecenterMap({ position, zoom = 15 }: { position: [number, number], zoom
   return null;
 }
 
+function BackgroundMapMover() {
+  const map = useMap();
+  useEffect(() => {
+    let angle = 0;
+    const interval = setInterval(() => {
+      angle += 0.02;
+      const currentCenter = map.getCenter();
+      map.panTo([
+        currentCenter.lat + Math.sin(angle) * 0.0003,
+        currentCenter.lng + Math.cos(angle) * 0.0003
+      ], {
+        animate: true,
+        duration: 3
+      });
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [map]);
+  return null;
+}
+
 function MapClickHandler({ setLocation, setIsSelectingLocation, setShowGigForm }: { setLocation: (loc: [number, number]) => void, setIsSelectingLocation: (val: boolean) => void, setShowGigForm: (val: boolean) => void }) {
   useMapEvents({
     dblclick(e) {
@@ -2945,6 +2965,7 @@ export default function App() {
             attributionControl={false}
           >
             {isSatellite ? <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" /> : <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />}
+            <BackgroundMapMover />
             <div className="absolute bottom-24 right-4 z-[1000] flex flex-col gap-2 pointer-events-auto">
               <button 
                 onClick={() => { playSmoothClickSound(); setShowInbox(true); }}
