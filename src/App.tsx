@@ -6109,27 +6109,52 @@ export default function App() {
           <button onClick={() => setSelectedGigView(null)} className="mb-6">
             <X className="w-8 h-8" />
           </button>
-          
-          <div className="flex items-center gap-4 mb-6">
-            <div className="w-16 h-16 rounded-2xl overflow-hidden bg-gray-100 border border-gray-200 shadow-inner">
-                {selectedGigView.userPhoto ? (
-                    <img src={selectedGigView.userPhoto} alt="Owner" className="w-full h-full object-cover" />
-                ) : (
-                    <div className="w-full h-full flex items-center justify-center text-gray-400 font-black text-2xl">
-                        {(selectedGigView.userName || 'O')[0]}
-                    </div>
-                )}
+          <div className="bg-white rounded-[2.5rem] shadow-2xl border border-gray-100 overflow-hidden">
+            <div className="p-8 pb-0">
+              <div className="flex items-center gap-4 mb-6">
+                <div className="w-16 h-16 rounded-2xl overflow-hidden bg-gray-50 border border-gray-100 shadow-inner">
+                    {selectedGigView.userPhoto ? (
+                        <img src={selectedGigView.userPhoto} alt="Owner" className="w-full h-full object-cover" />
+                    ) : (
+                        <div className="w-full h-full flex items-center justify-center text-gray-400 font-black text-2xl">
+                            {(selectedGigView.userName || 'O')[0]}
+                        </div>
+                    )}
+                </div>
+                <div>
+                    <h2 className="text-2xl font-black text-black leading-none mb-1">Gig Details</h2>
+                    <p className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em]">{selectedGigView.userName || 'Owner'}</p>
+                </div>
+              </div>
             </div>
-            <div>
-                <h2 className="text-2xl font-black mb-1">Gig Details</h2>
-                <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">{selectedGigView.userName || 'Owner'}</p>
+
+            <div className="px-8 pb-8 space-y-6">
+              <div className="bg-gray-50 p-6 rounded-2xl border border-gray-100 space-y-4">
+                <p className="text-base text-gray-900 font-bold leading-relaxed">"{selectedGigView.description}"</p>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Budget</p>
+                    <p className="text-xl font-black text-emerald-600">R{selectedGigView.budget}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Date & Time</p>
+                    <p className="text-sm font-black text-black">{selectedGigView.date} @ {selectedGigView.time}</p>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Contact</p>
+                  <p className="text-sm font-bold text-black">{selectedGigView.contactNumber}</p>
+                </div>
+
+                <div className="space-y-1">
+                  <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Experience Needed</p>
+                  <p className="text-sm font-medium text-gray-700 leading-relaxed">{selectedGigView.experienceNeeded || 'No specific experience listed'}</p>
+                </div>
+              </div>
             </div>
           </div>
-          <p className="text-lg mb-2"><strong>Description:</strong> {selectedGigView.description}</p>
-          <p className="text-lg mb-2"><strong>Budget:</strong> R{selectedGigView.budget}</p>
-          <p className="text-lg mb-2"><strong>Contact:</strong> {selectedGigView.contactNumber}</p>
-          <p className="text-lg mb-2"><strong>Date/Time:</strong> {selectedGigView.date} {selectedGigView.time}</p>
-          <p className="text-lg mb-4"><strong>Experience Needed:</strong> {selectedGigView.experienceNeeded}</p>
           {/* Prevent user from applying to their own gig post or hiring themselves */}
           {selectedGigView.userId === user?.uid ? (
             <div className="p-4 bg-amber-50 border border-amber-200 text-amber-900 rounded-2xl mb-6 font-bold text-xs flex items-center gap-3 shadow-sm">
