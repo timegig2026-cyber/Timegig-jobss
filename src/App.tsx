@@ -3192,9 +3192,6 @@ export default function App() {
                   )}
                 </div>
                 <div className="bg-white rounded-[2rem] shadow-sm border border-gray-100 flex flex-col relative overflow-hidden group shrink-0">
-                  <div className="aspect-[16/9] w-full overflow-hidden">
-                    <img src="/src/assets/images/annual_subscription_hero_1793265786343.jpg" alt="Tenant Sub" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
-                  </div>
                   <div className="p-6">
                     <div className="flex justify-between items-start mb-4">
                       <div>
@@ -3213,9 +3210,6 @@ export default function App() {
                   </div>
                 </div>
                 <div className="bg-black rounded-[2rem] shadow-2xl flex flex-col relative overflow-hidden group shrink-0">
-                  <div className="aspect-[16/9] w-full overflow-hidden opacity-80">
-                    <img src="/src/assets/images/monthly_subscription_hero_1793265786780.jpg" alt="User Sub" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
-                  </div>
                   <div className="p-6">
                     <div className="flex justify-between items-start mb-4">
                       <div>
@@ -4285,22 +4279,32 @@ export default function App() {
               </div>
               <div className="relative z-10 flex flex-col items-center">
                 {/* Top Corner Action Controls */}
-                <div className="absolute -top-4 left-4 right-4 flex items-center justify-end gap-2 z-20">
+                <div className="absolute -top-4 left-4 right-4 flex items-center justify-between gap-2 z-20">
                   <button 
-                    onClick={() => { playSmoothClickSound(); setShowSettingsModal(true); }}
-                    className="p-3 bg-white/10 hover:bg-white/20 rounded-2xl text-white transition-all active:scale-95 flex items-center backdrop-blur-sm border border-white/10 shadow-lg"
-                    title="Settings"
+                    onClick={() => { playSmoothClickSound(); navigateTab('map'); }}
+                    className="p-3 bg-white/10 hover:bg-white/20 rounded-2xl text-white transition-all active:scale-95 flex items-center gap-1.5 backdrop-blur-sm border border-white/10 shadow-lg text-xs font-black uppercase tracking-wider"
+                    title="Back to Map"
                   >
-                    <Settings className="w-5 h-5 text-white" />
+                    <ChevronLeft className="w-4 h-4" /> Back
                   </button>
 
-                  <button 
-                    onClick={() => { playSmoothClickSound(); handleLogout(); }}
-                    className="p-3 bg-white/10 hover:bg-white/20 rounded-2xl text-white transition-all active:scale-95 flex items-center backdrop-blur-sm border border-white/10 shadow-lg"
-                    title="Log Out"
-                  >
-                    <LogOut className="w-5 h-5 text-white" />
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button 
+                      onClick={() => { playSmoothClickSound(); setShowSettingsModal(true); }}
+                      className="p-3 bg-white/10 hover:bg-white/20 rounded-2xl text-white transition-all active:scale-95 flex items-center backdrop-blur-sm border border-white/10 shadow-lg"
+                      title="Settings"
+                    >
+                      <Settings className="w-5 h-5 text-white" />
+                    </button>
+
+                    <button 
+                      onClick={() => { playSmoothClickSound(); handleLogout(); }}
+                      className="p-3 bg-white/10 hover:bg-white/20 rounded-2xl text-white transition-all active:scale-95 flex items-center backdrop-blur-sm border border-white/10 shadow-lg"
+                      title="Log Out"
+                    >
+                      <LogOut className="w-5 h-5 text-white" />
+                    </button>
+                  </div>
                 </div>
                 <div className="absolute -top-20 left-1/2 -translate-x-1/2 group">
                   <div className="w-32 h-32 bg-white rounded-full p-1.5 border-4 border-white/20 overflow-hidden shadow-2xl relative">
@@ -4444,6 +4448,8 @@ export default function App() {
                             profileLocked: true
                           });
                           setProfileLocked(true);
+                          playSmoothReceiveSound();
+                          setShowReferralActivatedPopup(true);
                         } catch (err) { console.warn('Profile save notice:', err); }
                       } else {
                         setError('Log in to save your profile.');
@@ -4911,214 +4917,184 @@ export default function App() {
         )}
 
       {/* Auth View & Feature Lock Screen for Unregistered Users */}
-      <div className={`absolute inset-0 bg-gray-50 z-[50] transition-transform duration-300 flex flex-col items-center justify-center p-6 overflow-y-auto no-scrollbar ${activeTab === 'auth' ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0 pointer-events-none'}`}>
-        <div className="w-full max-w-md bg-white rounded-[2.5rem] p-7 shadow-2xl border border-gray-100 flex flex-col items-center text-center space-y-6 my-auto">
+      <div className={`absolute inset-0 bg-gray-50 z-[50] transition-transform duration-300 flex flex-col items-center justify-center p-4 overflow-y-auto no-scrollbar ${activeTab === 'auth' ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0 pointer-events-none'}`}>
+        <div className="w-full max-w-sm bg-white rounded-3xl p-5 shadow-2xl border border-gray-100 flex flex-col items-center text-center space-y-3.5 my-auto">
           
           {/* Lock Header Badge */}
-          <div className="w-16 h-16 bg-black text-white rounded-3xl flex items-center justify-center shadow-lg shadow-black/20 shrink-0">
-            <Lock className="w-8 h-8 text-amber-400" />
+          <div className="w-11 h-11 bg-black text-white rounded-2xl flex items-center justify-center shadow-md shadow-black/15 shrink-0">
+            <Lock className="w-5 h-5 text-amber-400" />
           </div>
 
-          <div className="space-y-1">
-            <span className="text-[10px] font-black uppercase tracking-[0.2em] bg-amber-100 text-amber-900 px-3 py-1 rounded-full border border-amber-300 inline-block">
-              🔒 App Locked • Registration Required
+          <div className="space-y-0.5">
+            <span className="text-[9px] font-black uppercase tracking-widest bg-amber-100 text-amber-900 px-2.5 py-0.5 rounded-full border border-amber-300 inline-block">
+              🔒 Registration Required
             </span>
-            <h1 className="text-3xl font-black text-black tracking-tight pt-1">TimeGiG</h1>
-            <p className="text-gray-600 text-xs font-medium max-w-xs mx-auto">
-              All features are locked for unregistered users. You must register and complete account activation to use the app.
+            <h1 className="text-2xl font-black text-black tracking-tight pt-0.5">TimeGiG</h1>
+            <p className="text-gray-600 text-[11px] font-medium max-w-xs mx-auto leading-snug">
+              Register and activate your account to unlock app features.
             </p>
           </div>
 
-          {/* Locked Features Summary Card */}
-          <div className="w-full bg-gray-50 p-4 rounded-2xl border border-gray-200 text-left space-y-2">
-            <p className="text-[10px] font-black text-black uppercase tracking-wider border-b border-gray-200 pb-1.5 flex items-center justify-between">
-              <span>Features Locked Until Registration & Activation</span>
-              <Lock className="w-3.5 h-3.5 text-red-500" />
+          {/* Compact Locked Notice */}
+          <div className="w-full bg-gray-50 px-3 py-2 rounded-xl border border-gray-200 text-left space-y-1">
+            <div className="flex items-center justify-between text-[9px] font-black text-black uppercase tracking-wider">
+              <span>App Locked • Activation Process</span>
+              <Lock className="w-3 h-3 text-red-500" />
+            </div>
+            <p className="text-[10px] text-gray-600 font-bold leading-tight">
+              1. Register → 2. Fill Profile → 3. Upload Selfie & ID → 4. Activated
             </p>
-            <div className="grid grid-cols-2 gap-2 pt-1 text-[11px] font-bold text-gray-700">
-              <div className="flex items-center gap-1.5 bg-white p-2 rounded-xl border border-gray-100 shadow-sm">
-                <LocateFixed className="w-3.5 h-3.5 text-gray-400" />
-                <span>GiGs Map (Locked)</span>
-              </div>
-              <div className="flex items-center gap-1.5 bg-white p-2 rounded-xl border border-gray-100 shadow-sm">
-                <Users className="w-3.5 h-3.5 text-gray-400" />
-                <span>Seekers (Locked)</span>
-              </div>
-              <div className="flex items-center gap-1.5 bg-white p-2 rounded-xl border border-gray-100 shadow-sm">
-                <Briefcase className="w-3.5 h-3.5 text-gray-400" />
-                <span>Gig Posting (Locked)</span>
-              </div>
-              <div className="flex items-center gap-1.5 bg-white p-2 rounded-xl border border-gray-100 shadow-sm">
-                <Crown className="w-3.5 h-3.5 text-gray-400" />
-                <span>Tenant (Locked)</span>
-              </div>
-            </div>
-            <div className="bg-amber-50 p-2.5 rounded-xl border border-amber-200 text-[10px] text-amber-900 font-bold flex items-center gap-2 mt-2">
-              <ShieldCheck className="w-4 h-4 text-amber-600 shrink-0" />
-              <span>Process: 1. Register → 2. Fill Profile → 3. Upload Selfie & ID → 4. Account Activated</span>
-            </div>
           </div>
 
           {user ? (
-            <div className="w-full space-y-4">
-              <div className="bg-gray-50 p-4 rounded-2xl border border-gray-200 flex items-center gap-3">
-                <div className="w-12 h-12 rounded-2xl overflow-hidden bg-black flex items-center justify-center shrink-0">
+            <div className="w-full space-y-3">
+              <div className="bg-gray-50 p-3 rounded-xl border border-gray-200 flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl overflow-hidden bg-black flex items-center justify-center shrink-0">
                   {(user.photoURL && user.photoURL !== "") ? (
                     <img src={user.photoURL} className="w-full h-full object-cover" alt="" />
                   ) : (
-                    <User className="w-6 h-6 text-white/50" />
+                    <User className="w-5 h-5 text-white/50" />
                   )}
                 </div>
-                <div className="text-left truncate">
-                  <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Logged in as</p>
-                  <h3 className="font-black text-black text-sm truncate">{user.displayName || user.email}</h3>
-                  <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full inline-block mt-0.5 ${isApproved ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+                <div className="text-left truncate flex-1">
+                  <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Logged in as</p>
+                  <h3 className="font-black text-black text-xs truncate">{user.displayName || user.email}</h3>
+                  <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full inline-block mt-0.5 ${isApproved ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
                     {isApproved ? 'Verified & Activated' : 'Pending Activation'}
                   </span>
                 </div>
               </div>
               <button 
                 onClick={() => navigateTab(isApproved ? 'map' : 'activation')} 
-                className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-2xl shadow-xl uppercase tracking-widest text-xs active:scale-95 transition-all"
+                className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-xl shadow-lg uppercase tracking-wider text-xs active:scale-95 transition-all"
               >
                 {isApproved ? 'Enter GiGs Map & Features' : 'Continue Step-by-Step Activation'}
               </button>
-              <button onClick={handleLogout} className="w-full py-3.5 bg-black hover:bg-gray-800 text-white font-bold rounded-2xl flex items-center justify-center gap-2 active:scale-95 transition-all text-xs uppercase tracking-wider">
-                <LogOut className="w-4 h-4 text-amber-400" /> Sign Out Account
+              <button onClick={handleLogout} className="w-full py-2.5 bg-black hover:bg-gray-800 text-white font-bold rounded-xl flex items-center justify-center gap-2 active:scale-95 transition-all text-xs uppercase tracking-wider">
+                <LogOut className="w-3.5 h-3.5 text-amber-400" /> Sign Out Account
               </button>
             </div>
           ) : (
-            <div className="w-full space-y-4">
+            <div className="w-full space-y-3">
               {authError && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-xs font-bold text-left">
+                <div className="p-2.5 bg-red-50 border border-red-200 rounded-xl text-red-600 text-[11px] font-bold text-left">
                   {authError}
                 </div>
               )}
-              <button onClick={handleLogin} className="w-full py-4 bg-black hover:bg-gray-800 text-white font-black rounded-2xl shadow-xl flex items-center justify-center gap-3 active:scale-95 transition-all cursor-pointer text-xs uppercase tracking-wider">
-                <LogIn className="w-4 h-4 text-emerald-400" /> Sign In With Google
+              <button onClick={handleLogin} className="w-full py-2.5 bg-black hover:bg-gray-800 text-white font-black rounded-xl shadow-md flex items-center justify-center gap-2 active:scale-95 transition-all cursor-pointer text-xs uppercase tracking-wider">
+                <LogIn className="w-3.5 h-3.5 text-emerald-400" /> Sign In With Google
               </button>
 
               <div className="pt-2 border-t border-gray-100">
-                <p className="text-[10px] font-black text-black uppercase tracking-widest mb-2 text-center">Or Register / Sign In with Email</p>
+                <p className="text-[9px] font-black text-black uppercase tracking-wider mb-2 text-center">Or Register with Email</p>
                 <form onSubmit={handleEmailAuth} className="space-y-2">
                   <input 
                     type="email" 
                     placeholder="Email address..." 
                     value={authEmail} 
                     onChange={e => setAuthEmail(e.target.value)}
-                    className="w-full bg-gray-50 p-3 rounded-xl text-xs font-black text-black border border-gray-300 focus:border-black outline-none" 
+                    className="w-full bg-gray-50 px-3 py-2 rounded-lg text-xs font-black text-black border border-gray-300 focus:border-black outline-none" 
                   />
                   <input 
                     type="password" 
                     placeholder="Password..." 
                     value={authPassword} 
                     onChange={e => setAuthPassword(e.target.value)}
-                    className="w-full bg-gray-50 p-3 rounded-xl text-xs font-black text-black border border-gray-300 focus:border-black outline-none" 
+                    className="w-full bg-gray-50 px-3 py-2 rounded-lg text-xs font-black text-black border border-gray-300 focus:border-black outline-none" 
                   />
                   <button 
                     type="submit" 
                     disabled={isAuthSubmitting}
-                    className="w-full py-3.5 bg-gray-900 hover:bg-black text-white font-black rounded-xl text-xs uppercase tracking-wider active:scale-95 transition-all disabled:opacity-50 cursor-pointer shadow-md"
+                    className="w-full py-2.5 bg-gray-900 hover:bg-black text-white font-black rounded-lg text-xs uppercase tracking-wider active:scale-95 transition-all disabled:opacity-50 cursor-pointer shadow-sm"
                   >
                     {isAuthSubmitting ? 'Authenticating...' : 'Register / Sign In Account'}
                   </button>
                 </form>
               </div>
-              <p className="text-[9px] font-bold text-gray-400 uppercase tracking-[0.15em] text-center">Protected by Firebase Auth & Encrypted Database</p>
+              <p className="text-[8px] font-bold text-gray-400 uppercase tracking-widest text-center">Protected by Firebase Auth</p>
             </div>
           )}
         </div>
       </div>
 
-      {/* Bottom Menu Bar */}
-      <div className="fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-gray-100 flex items-center justify-around px-4 z-[9999] pb-[env(safe-area-inset-bottom)] shadow-lg shrink-0">
-        {!user ? (
-          <div className="flex items-center justify-center w-full max-w-sm mx-auto">
-            <button onClick={() => { setVerificationStep(null); setActiveTab('auth'); }} className="flex items-center gap-2 px-6 py-2.5 bg-black text-white rounded-full shadow-lg transition-all active:scale-95">
-              <Lock className="w-4 h-4 text-amber-400" />
-              <span className="text-xs font-black uppercase tracking-wider">App Locked • Sign-In / Register</span>
+      {/* Bottom Menu Bar - Hidden for unregistered users, in auth screen, and during activation */}
+      {Boolean(user && (isApproved || isMainTenant) && activeTab !== 'auth' && activeTab !== 'activation') && (
+        <div className="fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-gray-100 flex items-center justify-around px-4 z-[9999] pb-[env(safe-area-inset-bottom)] shadow-lg shrink-0">
+          {/* 1. Tenant Dashboard (For Tenants / Main Admin) */}
+          {(userRole === 'Tenant' || isMainTenant) && (
+            <button 
+              onClick={() => { navigateTab('tenant'); setShowReferralList(false); setReferralView(null); }} 
+              className={`flex flex-col items-center gap-0.5 transition-all active:scale-90 relative ${activeTab === 'tenant' ? 'text-black font-black' : 'text-gray-500 hover:text-black'}`}
+            >
+              <LayoutGrid className="w-5 h-5 stroke-[2]" />
+              {(activeTab !== 'tenant' || userRole === 'User') && <span className="text-[9px] font-bold uppercase tracking-[0.1em]">Tenant</span>}
+              {isMainTenant && delinquentTenants.length > 0 && (
+                <span className="absolute -top-1.5 -right-2 bg-red-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full animate-pulse shadow-sm">
+                  {delinquentTenants.length}
+                </span>
+              )}
             </button>
-          </div>
-        ) : (
-          <>
-            {/* 1. Tenant Dashboard (For Tenants / Main Admin) */}
-            {(userRole === 'Tenant' || isMainTenant) && (
-              <button 
-                onClick={() => { navigateTab('tenant'); setShowReferralList(false); setReferralView(null); }} 
-                className={`flex flex-col items-center gap-0.5 transition-all active:scale-90 relative ${activeTab === 'tenant' ? 'text-black font-black' : 'text-gray-500 hover:text-black'}`}
-              >
-                <LayoutGrid className="w-5 h-5 stroke-[2]" />
-                {(activeTab !== 'tenant' || userRole === 'User') && <span className="text-[9px] font-bold uppercase tracking-[0.1em]">Tenant</span>}
-                {isMainTenant && delinquentTenants.length > 0 && (
-                  <span className="absolute -top-1.5 -right-2 bg-red-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full animate-pulse shadow-sm">
-                    {delinquentTenants.length}
+          )}
+
+          {/* 2. Total Refs Feature */}
+          <button 
+            onClick={() => { navigateTab('referrals'); setShowReferralList(true); setReferralView(null); }} 
+            className={`flex flex-col items-center gap-0.5 transition-all active:scale-90 relative ${activeTab === 'referrals' ? 'text-black font-black' : 'text-gray-500 hover:text-black'}`}
+            title="Total Refs"
+          >
+            <Users className="w-5 h-5 stroke-[2]" />
+            {(activeTab !== 'referrals' || userRole === 'User') && <span className="text-[9px] font-bold uppercase tracking-[0.1em]">Refs</span>}
+            {(() => {
+              const pendingCount = referrals.filter(r => r.status === 'pending').length;
+              if (pendingCount > 0) {
+                return (
+                  <span className="absolute -top-1.5 -right-2 bg-amber-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full animate-pulse shadow-sm">
+                    {pendingCount}
                   </span>
-                )}
-              </button>
-            )}
+                );
+              }
+              return null;
+            })()}
+          </button>
 
-            {/* 2. Total Refs Feature */}
+          {/* 3. GiGs Map Icon (Centered & Bigger) */}
+          {showGigsIconForUser && (
             <button 
-              onClick={() => { navigateTab('referrals'); setShowReferralList(true); setReferralView(null); }} 
-              className={`flex flex-col items-center gap-0.5 transition-all active:scale-90 relative ${activeTab === 'referrals' ? 'text-black font-black' : 'text-gray-500 hover:text-black'}`}
-              title="Total Refs"
+              onClick={() => navigateTab('map')} 
+              className={`flex flex-col items-center gap-0.5 transition-all active:scale-90 relative -top-3 ${activeTab === 'map' ? 'text-black font-black' : 'text-gray-500 hover:text-black'}`}
+              title="GiGs Map"
             >
-              <Users className="w-5 h-5 stroke-[2]" />
-              {(activeTab !== 'referrals' || userRole === 'User') && <span className="text-[9px] font-bold uppercase tracking-[0.1em]">Refs</span>}
-              {(() => {
-                const pendingCount = referrals.filter(r => r.status === 'pending').length;
-                if (pendingCount > 0) {
-                  return (
-                    <span className="absolute -top-1.5 -right-2 bg-amber-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full animate-pulse shadow-sm">
-                      {pendingCount}
-                    </span>
-                  );
-                }
-                return null;
-              })()}
+              <div className="bg-black p-3 rounded-full shadow-lg border-4 border-white">
+                <LocateFixed className="w-8 h-8 text-white stroke-[2]" />
+              </div>
+              {(activeTab !== 'map' || userRole === 'User') && <span className="text-[9px] font-black uppercase tracking-[0.1em] mt-1">GiGs</span>}
             </button>
+          )}
 
-            {/* 3. GiGs Map Icon (Centered & Bigger) */}
-            {showGigsIconForUser && (
-              <button 
-                onClick={() => navigateTab('map')} 
-                className={`flex flex-col items-center gap-0.5 transition-all active:scale-90 relative -top-3 ${activeTab === 'map' ? 'text-black font-black' : 'text-gray-500 hover:text-black'}`}
-                title="GiGs Map"
-              >
-                <div className="bg-black p-3 rounded-full shadow-lg border-4 border-white">
-                  <LocateFixed className="w-8 h-8 text-white stroke-[2]" />
-                </div>
-                {(activeTab !== 'map' || userRole === 'User') && <span className="text-[9px] font-black uppercase tracking-[0.1em] mt-1">GiGs</span>}
-              </button>
-            )}
+          {/* 4. Seekers Feature */}
+          <button 
+            onClick={() => navigateTab('seekers')} 
+            className={`flex flex-col items-center gap-0.5 transition-all active:scale-90 ${activeTab === 'seekers' ? 'text-black font-black' : 'text-gray-500 hover:text-black'}`}
+            title="Seekers Directory"
+          >
+            <Users className="w-5 h-5 stroke-[2]" />
+            {(activeTab !== 'seekers' || userRole === 'User') && <span className="text-[9px] font-bold uppercase tracking-[0.1em]">Seekers</span>}
+          </button>
 
-            {/* 4. Seekers Feature */}
+          {/* 5. Shop Tab (For Tenants / Main Admin) */}
+          {(userRole === 'Tenant' || isMainTenant) && (
             <button 
-              onClick={() => navigateTab('seekers')} 
-              className={`flex flex-col items-center gap-0.5 transition-all active:scale-90 ${activeTab === 'seekers' ? 'text-black font-black' : 'text-gray-500 hover:text-black'}`}
-              title="Seekers Directory"
+              onClick={() => navigateTab('shop')} 
+              className={`flex flex-col items-center gap-0.5 transition-all active:scale-90 relative ${activeTab === 'shop' ? 'text-black font-black' : 'text-gray-500 hover:text-black'}`}
+              title="Shop"
             >
-              <Users className="w-5 h-5 stroke-[2]" />
-              {(activeTab !== 'seekers' || userRole === 'User') && <span className="text-[9px] font-bold uppercase tracking-[0.1em]">Seekers</span>}
+              <ShoppingBag className="w-5 h-5 stroke-[2]" />
+              {(activeTab !== 'shop' || userRole === 'User') && <span className="text-[9px] font-bold uppercase tracking-[0.1em]">Shop</span>}
+              <span className="absolute -top-1 -right-2 bg-amber-500 text-white text-[6px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-tighter">CONSTRUCTION</span>
             </button>
-
-            {/* 5. Shop Tab (For Tenants / Main Admin) */}
-            {(userRole === 'Tenant' || isMainTenant) && (
-              <button 
-                onClick={() => navigateTab('shop')} 
-                className={`flex flex-col items-center gap-0.5 transition-all active:scale-90 relative ${activeTab === 'shop' ? 'text-black font-black' : 'text-gray-500 hover:text-black'}`}
-                title="Shop"
-              >
-                <ShoppingBag className="w-5 h-5 stroke-[2]" />
-                {(activeTab !== 'shop' || userRole === 'User') && <span className="text-[9px] font-bold uppercase tracking-[0.1em]">Shop</span>}
-                <span className="absolute -top-1 -right-2 bg-amber-500 text-white text-[6px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-tighter">CONSTRUCTION</span>
-              </button>
-            )}
-
-
-          </>
-        )}
-      </div>
+          )}
+        </div>
+      )}
 
       {/* Admin Notification Toast */}
       {adminNotificationToast && (
@@ -5936,39 +5912,38 @@ export default function App() {
         </div>
       )}
 
-      {/* Referral's Screen - Activated Celebration Popup */}
+      {/* Referral's Screen - Activated & Profile Complete Celebration Popup */}
       {showReferralActivatedPopup && (
         <div className="fixed inset-0 z-[11000] bg-black/60 backdrop-blur-sm flex items-center justify-center p-6 animate-in fade-in duration-200">
-          <div className="bg-white rounded-[2.5rem] p-8 max-w-sm w-full text-center shadow-2xl space-y-6 animate-in zoom-in-95 duration-200 relative overflow-hidden border border-gray-100">
+          <div className="bg-white rounded-[2.5rem] p-8 max-w-sm w-full text-center shadow-2xl space-y-5 animate-in zoom-in-95 duration-200 relative overflow-hidden border border-gray-100">
             <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-emerald-400 via-teal-500 to-emerald-600" />
             <div className="w-20 h-20 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mx-auto shadow-lg shadow-emerald-100">
               <Sparkles className="w-10 h-10 animate-pulse text-emerald-500" />
             </div>
             <div className="space-y-2">
-              <span className="text-[10px] font-black text-emerald-600 uppercase tracking-[0.2em] bg-emerald-50 px-3 py-1 rounded-full">Official Activation</span>
-              <h3 className="text-2xl font-black text-black tracking-tight">Account Activated!</h3>
-              <p className="text-gray-500 text-sm leading-relaxed">
-                Congratulations! Your verification documents and payment have been approved by the tenant. Your profile is now officially verified.
+              <span className="text-[10px] font-black text-emerald-600 uppercase tracking-[0.2em] bg-emerald-50 px-3 py-1 rounded-full">Congratulations!</span>
+              <h3 className="text-2xl font-black text-black tracking-tight">Profile Completed & Verified!</h3>
+              <p className="text-gray-600 text-xs leading-relaxed font-medium">
+                Congratulations on completing your profile! You are now fully set up on TimeGiG.
               </p>
-              <div className="bg-emerald-50/70 p-3.5 rounded-xl border border-emerald-100 text-xs text-emerald-900 font-bold text-left space-y-1.5">
-                <div className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-600 shrink-0" /> Verified badge active on your profile</div>
-                <div className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-600 shrink-0" /> Free to apply for local on-demand gigs</div>
-                <div className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-600 shrink-0" /> Personal referral link to grow your verified network</div>
+              <div className="bg-emerald-50/80 p-3.5 rounded-2xl border border-emerald-200 text-left space-y-2 text-emerald-900">
+                <p className="text-[10px] font-black uppercase tracking-wider text-emerald-800 flex items-center gap-1.5">
+                  <DollarSign className="w-4 h-4 text-emerald-600 shrink-0" /> Referral & Passive Income
+                </p>
+                <p className="text-[11px] leading-relaxed font-medium text-emerald-900">
+                  Tenants can refer new members and earn a secure <strong className="font-black text-emerald-950">passive monthly income</strong> directly from user subscriptions!
+                </p>
               </div>
             </div>
             <button 
               onClick={() => {
                 setShowReferralActivatedPopup(false);
                 setVerificationStep(null);
-                if (isProfileComplete()) {
-                  setActiveTab('map');
-                } else {
-                  setActiveTab('profile');
-                }
+                setActiveTab('map');
               }}
-              className="w-full py-4 bg-emerald-600 text-white font-black rounded-2xl active:scale-95 transition-all text-xs uppercase tracking-widest shadow-xl shadow-emerald-200"
+              className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-2xl active:scale-95 transition-all text-xs uppercase tracking-widest shadow-xl shadow-emerald-200"
             >
-              {isProfileComplete() ? 'Explore GiGs Map Now' : 'Complete Profile Now (Required)'}
+              Go to GiGs Map & Features Now
             </button>
           </div>
         </div>
