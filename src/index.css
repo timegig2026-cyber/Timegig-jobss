@@ -1,1 +1,15 @@
 @import "tailwindcss";
+
+@layer base {
+  input, textarea, select, option {
+    color: #000000 !important;
+  }
+}
+
+input, textarea, select, option {
+  color: #000000 !important;
+}
+
+input::placeholder, textarea::placeholder {
+  color: #6b7280 !important;
+}

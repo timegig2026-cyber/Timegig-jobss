@@ -7,7 +7,7 @@ import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { MapContainer, TileLayer, Marker, useMap, useMapEvents, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
-import { MapPin, Compass, Search, LocateFixed, Zap, X, Plus, Minus, Layers, Check, Camera, FileText, CreditCard, Clock, ChevronLeft, Upload, RefreshCw, Scan, LayoutGrid, Users, Trash2, User, Mail, Phone, Link2, Briefcase, Star, MapPinned, Lock, Unlock, Globe, Target, LogIn, LogOut, Maximize2, CheckCircle2, Sparkles, ShieldCheck, HelpCircle, Settings, Volume2, VolumeX, Bell, AlertTriangle, ShieldAlert, Crown, AlertCircle, Inbox, Archive, Send, Eye, EyeOff, ShoppingBag, MessageSquare, Megaphone } from 'lucide-react';
+import { MapPin, Compass, Search, LocateFixed, Zap, X, Plus, Minus, Layers, Check, Camera, FileText, CreditCard, Clock, ChevronLeft, Upload, RefreshCw, Scan, LayoutGrid, Users, Trash2, User, Mail, Phone, Link2, Briefcase, Star, MapPinned, Lock, Unlock, Globe, Target, LogIn, LogOut, Maximize2, CheckCircle2, Sparkles, ShieldCheck, HelpCircle, Settings, Volume2, VolumeX, Bell, AlertTriangle, ShieldAlert, Crown, AlertCircle, Inbox, Archive, Send, Eye, EyeOff, ShoppingBag, MessageSquare, Megaphone, DollarSign } from 'lucide-react';
 import * as faceapi from 'face-api.js';
 import { auth, db } from './lib/firebase';
 import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut, User as FirebaseUser, signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
@@ -2799,14 +2799,21 @@ export default function App() {
                 </Popup>
               </Marker>
             )}
-            {/* Gig Posts on the Map (Tenant Posts & Available Gigs) */}
-            {gigs.map(gig => {
+            {/* Gig Posts on the Map (Available Gigs Only) */}
+            {gigs.filter(g => {
+              const posterUser = allUsersList.find(u => u.uid === g.userId);
+              const isTenantPost = g.userRole === 'Tenant' || g.isTenant || g.userEmail === 'timegig2026@gmail.com' || posterUser?.role === 'Tenant' || posterUser?.email === 'timegig2026@gmail.com';
+              return !isTenantPost;
+            }).map(gig => {
               if (!gig.location || !Array.isArray(gig.location) || gig.location.length < 2) return null;
-              const posterUser = allUsersList.find(u => u.uid === gig.userId);
-              const isTenantPost = gig.userRole === 'Tenant' || gig.isTenant || gig.userEmail === 'timegig2026@gmail.com' || posterUser?.role === 'Tenant' || posterUser?.email === 'timegig2026@gmail.com';
               const isMyGig = gig.userId === user?.uid;
-              const posterName = gig.userName || (posterUser ? `${posterUser.name || ''} ${posterUser.surname || ''}`.trim() : '');
-              const posterPhoto = gig.userPhoto || posterUser?.photoURL || null;
+              const gigDesc = gig.description || '';
+              let gadget = '🛠️';
+              if (gigDesc.toLowerCase().includes('clean')) gadget = '🧹';
+              else if (gigDesc.toLowerCase().includes('build') || gigDesc.toLowerCase().includes('construct')) gadget = '🏗️';
+              else if (gigDesc.toLowerCase().includes('repair') || gigDesc.toLowerCase().includes('fix')) gadget = '🔧';
+              else if (gigDesc.toLowerCase().includes('deliver')) gadget = '📦';
+              
               return (
                 <Marker 
                   key={gig.id} 
@@ -2814,13 +2821,9 @@ export default function App() {
                   icon={L.divIcon({
                     className: 'bg-transparent',
                     html: `
-                      <div class="relative w-11 h-11 rounded-2xl bg-black border-2 ${isTenantPost ? 'border-amber-400 ring-2 ring-amber-400/50' : 'border-white ring-2 ring-emerald-400/50'} shadow-xl flex items-center justify-center hover:scale-110 transition-transform cursor-pointer">
-                        <div class="w-full h-full rounded-2xl overflow-hidden flex items-center justify-center bg-gray-900 text-white">
-                          ${posterPhoto ? `<img src="${posterPhoto}" class="w-full h-full object-cover" />` : `<span class="text-base">${isTenantPost ? '👑' : '💼'}</span>`}
-                        </div>
-                        <span class="absolute -top-1.5 -right-1.5 ${isTenantPost ? 'bg-amber-400 text-black' : 'bg-emerald-500 text-white'} text-[7px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-tight shadow">
-                          ${isTenantPost ? 'Tenant' : 'Gig'}
-                        </span>
+                      <div class="relative w-11 h-11 rounded-2xl bg-white border-2 border-emerald-400 shadow-xl flex items-center justify-center hover:scale-110 transition-transform cursor-pointer">
+                        <span class="text-xl">${gadget}</span>
+                        <span class="absolute -top-1.5 -right-1.5 bg-emerald-500 text-white text-[7px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-tight shadow">Gig</span>
                       </div>
                     `,
                     iconSize: [44, 44],
@@ -2830,20 +2833,13 @@ export default function App() {
                   <Popup className="rounded-2xl shadow-xl">
                     <div className="p-3 space-y-2 text-left max-w-[240px]">
                       <div className="flex items-center justify-between gap-1 border-b border-gray-100 pb-1.5">
-                        <span className={`text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider ${isTenantPost ? 'bg-amber-100 text-amber-900' : 'bg-emerald-100 text-emerald-800'}`}>
-                          {isTenantPost ? '👑 Tenant Gig Post' : '💼 Available Gig'}
-                        </span>
+                        <span className="text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider bg-emerald-100 text-emerald-800">💼 Available Gig</span>
                         {gig.budget && <span className="text-xs font-black text-emerald-600">R{gig.budget}</span>}
                       </div>
                       <div>
                         <h3 className="font-black text-sm text-black leading-snug">{gig.description}</h3>
-                        {posterName && (
-                          <p className="text-[10px] text-gray-500 font-bold mt-1">
-                            By: <span className="text-black font-black">{posterName}</span> {isTenantPost ? '(Tenant)' : ''}
-                          </p>
-                        )}
                         {gig.contactNumber && (
-                          <p className="text-[10px] text-gray-500 font-medium">
+                          <p className="text-[10px] text-gray-500 font-medium mt-1">
                             Contact: <span className="text-black font-bold">{gig.contactNumber}</span>
                           </p>
                         )}
@@ -2875,6 +2871,14 @@ export default function App() {
                         <div class="w-full h-full rounded-full overflow-hidden flex items-center justify-center bg-gray-100 text-black">
                           ${seeker.photoURL ? `<img src="${seeker.photoURL}" class="w-full h-full object-cover" />` : `<span class="text-xs font-black">${(seeker.name || 'S')[0]}</span>`}
                         </div>
+                        <span class="absolute -top-1 -right-1 text-sm bg-white rounded-full shadow-sm">
+                          ${(seeker.workTrade || '').toLowerCase().includes('clean') ? '🧹' : 
+                            (seeker.workTrade || '').toLowerCase().includes('build') || (seeker.workTrade || '').toLowerCase().includes('construct') ? '🏗️' :
+                            (seeker.workTrade || '').toLowerCase().includes('repair') || (seeker.workTrade || '').toLowerCase().includes('fix') ? '🔧' :
+                            (seeker.workTrade || '').toLowerCase().includes('deliver') ? '📦' :
+                            (seeker.workTrade || '').toLowerCase().includes('electric') ? '⚡' :
+                            (seeker.workTrade || '').toLowerCase().includes('plumb') ? '🚰' : '🛠️'}
+                        </span>
                         <span class="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full border-2 border-white ${seeker.isAvailableForWork !== false ? 'bg-emerald-500' : 'bg-gray-400'}" title="${seeker.isAvailableForWork !== false ? 'Available' : 'Busy'}"></span>
                       </div>
                     `,
@@ -2973,7 +2977,7 @@ export default function App() {
                         <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Per Month</div>
                       </div>
                     </div>
-                    <p className="text-sm text-gray-600 mb-6 font-medium">Earn passive monthly income from user subscriptions while keeping your account active.</p>
+                    <p className="text-sm text-gray-600 mb-6 font-medium">Build your verified network of job seekers and tenants while keeping your account active.</p>
                     <button onClick={() => startVerification('Tenant Sub')} className="w-full py-4 bg-black text-white font-bold rounded-2xl active:scale-95 transition-all text-sm">
                       {isReferralUser && !isApproved ? 'Start 30-Day Free Trial (Tenant)' : 'Activate Tenant Sub'}
                     </button>
@@ -3259,57 +3263,49 @@ export default function App() {
               <div className="max-w-md mx-auto w-full space-y-4 pb-16">
                 <div className="text-center mb-4 relative">
                   <h2 className="text-2xl font-black text-black tracking-tight mb-0.5">Tenant Dashboard</h2>
-                  <p className="text-gray-500 text-[11px] font-medium">Passive Income & Network Management</p>
+                  <p className="text-gray-500 text-[11px] font-medium">Verified Network Management</p>
                 </div>
 
-                {/* Total Profit Balance Box - More Compact */}
+                {/* Referral Network Overview Box */}
                 {(() => {
-                  const tenantSubProfit = (profileData as any).tenantSubProfit ?? ((profileData as any).tenantProfit || 0);
-                  const userSubProfit = (profileData as any).userSubProfit ?? ((profileData as any).userProfit || 0);
-                  const totalProfitBalance = tenantSubProfit + userSubProfit;
+                  const refTenantsCount = referrals.filter(r => r.referrerId === user?.uid && r.type === 'Tenant').length;
+                  const refUsersCount = referrals.filter(r => r.referrerId === user?.uid && r.type === 'User').length;
+                  const totalNetworkCount = refTenantsCount + refUsersCount;
+                  const tenantSubTotal = profileData.tenantSubProfit || (profileData.tenantProfit || 0);
+                  const userSubTotal = profileData.userSubProfit || (profileData.userProfit || 0);
+                  const totalProfitBalance = tenantSubTotal + userSubTotal;
+
                   return (
-                    <div className="bg-black rounded-[1.5rem] p-4 shadow-xl relative overflow-hidden group border border-white/10 space-y-3">
-                      <div className="absolute top-0 right-0 p-3 opacity-10">
-                        <LayoutGrid className="w-12 h-12 text-white" />
+                    <div className="bg-black rounded-[1.5rem] p-5 shadow-xl relative overflow-hidden group border border-white/10 space-y-4">
+                      <div className="absolute top-0 right-0 p-4 opacity-10">
+                        <DollarSign className="w-16 h-16 text-emerald-400" />
                       </div>
-                      <div className="flex items-center justify-between relative z-10">
+                      
+                      <div className="flex items-center justify-between relative z-10 border-b border-white/10 pb-3">
                         <div>
-                          <span className="text-gray-400 text-[9px] font-black uppercase tracking-[0.2em] block">Profit Balance</span>
-                          <div className="text-3xl font-black text-white tracking-tighter">
-                            R{totalProfitBalance.toFixed(2)}
+                          <span className="text-gray-400 text-[9px] font-black uppercase tracking-[0.2em] block">Total Profit Balance</span>
+                          <div className="text-3xl font-black text-emerald-400 tracking-tighter">
+                            R{totalProfitBalance}
                           </div>
+                          <p className="text-[10px] text-gray-400 font-medium mt-0.5">Tenant Sub & User Sub Payments Received</p>
                         </div>
-                        {isMainTenant && (
-                          <button 
-                            onClick={async () => {
-                              if (confirm('Reset balance?')) {
-                                await updateDoc(doc(db, 'users', user!.uid), {
-                                  tenantProfit: 0, userProfit: 0, tenantSubProfit: 0, userSubProfit: 0
-                                });
-                              }
-                            }}
-                            className="bg-white/10 hover:bg-white/20 p-2.5 rounded-2xl text-white transition-colors border border-white/10"
-                          >
-                            <RefreshCw className="w-4 h-4" />
-                          </button>
-                        )}
+                        <div className="text-right">
+                          <span className="text-gray-400 text-[9px] font-black uppercase tracking-wider block">Verified Network</span>
+                          <div className="text-xl font-black text-white">{totalNetworkCount} Members</div>
+                        </div>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-2 relative z-10">
-                        <button 
-                          onClick={() => userRole === 'Tenant' && setShowFeesModal({ type: 'Tenant', fee: profileData.tenantSubFee || 100 })}
-                          className={`rounded-xl p-3 border transition-all text-left ${userRole === 'Tenant' ? 'bg-white/5 border-white/10 hover:bg-white/10' : 'bg-white/5 border-white/5'}`}
-                        >
-                          <span className="text-gray-500 text-[8px] font-black uppercase tracking-wider block">Tenant Sub</span>
-                          <div className="text-lg font-black text-emerald-400">R{tenantSubProfit.toFixed(2)}</div>
-                        </button>
-                        <button 
-                          onClick={() => userRole === 'Tenant' && setShowFeesModal({ type: 'User', fee: profileData.userSubFee || 25 })}
-                          className={`rounded-xl p-3 border transition-all text-left ${userRole === 'Tenant' ? 'bg-white/5 border-white/10 hover:bg-white/10' : 'bg-white/5 border-white/5'}`}
-                        >
-                          <span className="text-gray-500 text-[8px] font-black uppercase tracking-wider block">User Sub</span>
-                          <div className="text-lg font-black text-blue-400">R{userSubProfit.toFixed(2)}</div>
-                        </button>
+                      <div className="grid grid-cols-2 gap-2.5 relative z-10">
+                        <div className="rounded-xl p-3 border border-white/10 bg-white/5 text-left space-y-1">
+                          <span className="text-gray-400 text-[8px] font-black uppercase tracking-wider block">Tenant Sub Payments</span>
+                          <div className="text-base font-black text-emerald-400">R{tenantSubTotal}</div>
+                          <span className="text-[9px] text-gray-400 font-semibold block">{refTenantsCount} / {stats.tenantSignupTarget} Tenants</span>
+                        </div>
+                        <div className="rounded-xl p-3 border border-white/10 bg-white/5 text-left space-y-1">
+                          <span className="text-gray-400 text-[8px] font-black uppercase tracking-wider block">User Sub Payments</span>
+                          <div className="text-base font-black text-blue-400">R{userSubTotal}</div>
+                          <span className="text-[9px] text-gray-400 font-semibold block">{refUsersCount} / {stats.userSubSignupTarget} Users</span>
+                        </div>
                       </div>
                     </div>
                   );
@@ -3662,7 +3658,7 @@ export default function App() {
                               </div>
 
                               {/* Metrics row */}
-                              <div className="grid grid-cols-3 gap-1.5 text-center bg-white p-1.5 rounded-lg border border-gray-100 text-[9px]">
+                              <div className="grid grid-cols-4 gap-1 text-center bg-white p-1.5 rounded-lg border border-gray-100 text-[9px]">
                                 <div>
                                   <span className="text-gray-400 font-bold uppercase tracking-wider block text-[8px]">Pending</span>
                                   <span className={`font-black ${metrics.pendingCount > 0 ? (metrics.oldestPendingHours >= 24 ? 'text-red-600' : 'text-amber-600') : 'text-gray-700'}`}>
@@ -3670,12 +3666,16 @@ export default function App() {
                                   </span>
                                 </div>
                                 <div>
-                                  <span className="text-gray-400 font-bold uppercase tracking-wider block text-[8px]">Tenant Profit</span>
-                                  <span className="font-black text-emerald-600">R{(t.tenantSubProfit || 0).toFixed(0)}</span>
+                                  <span className="text-gray-400 font-bold uppercase tracking-wider block text-[8px]">Ref Tenants</span>
+                                  <span className="font-black text-emerald-600">{referrals.filter(r => r.referrerId === t.uid && r.type === 'Tenant').length}</span>
                                 </div>
                                 <div>
-                                  <span className="text-gray-400 font-bold uppercase tracking-wider block text-[8px]">User Profit</span>
-                                  <span className="font-black text-blue-600">R{(t.userSubProfit || 0).toFixed(0)}</span>
+                                  <span className="text-gray-400 font-bold uppercase tracking-wider block text-[8px]">Ref Users</span>
+                                  <span className="font-black text-blue-600">{referrals.filter(r => r.referrerId === t.uid && r.type === 'User').length}</span>
+                                </div>
+                                <div>
+                                  <span className="text-gray-400 font-bold uppercase tracking-wider block text-[8px]">Total Profit</span>
+                                  <span className="font-black text-black">R{(t.tenantSubProfit ?? t.tenantProfit ?? 0) + (t.userSubProfit ?? t.userProfit ?? 0)}</span>
                                 </div>
                               </div>
 
@@ -3899,8 +3899,8 @@ export default function App() {
                                   subscriptionExpiresAt: subscriptionExpiresAt
                                 });
                                 
-                                const profitGain = isTenant ? 100 : 25;
-                                const profitLabel = isTenant ? 'Tenant Sub Profit' : 'User Sub Profit';
+                                const paymentAmount = isTenant ? (profileData.tenantSubFee || 100) : (profileData.userSubFee || 25);
+                                const paymentLabel = isTenant ? 'Tenant Sub Payment' : 'User Sub Payment';
 
                                 if (user) {
                                   const tenantDocRef = doc(db, 'users', user.uid);
@@ -3912,22 +3912,24 @@ export default function App() {
                                     const currentTenantProfit = tenantData.tenantProfit ?? 0;
                                     const currentUserProfit = tenantData.userProfit ?? 0;
 
-                                    const newTenantSubProfit = isTenant ? currentTenantSubProfit + profitGain : currentTenantSubProfit;
-                                    const newUserSubProfit = !isTenant ? currentUserSubProfit + profitGain : currentUserSubProfit;
+                                    const newTenantSubProfit = isTenant ? currentTenantSubProfit + paymentAmount : currentTenantSubProfit;
+                                    const newUserSubProfit = !isTenant ? currentUserSubProfit + paymentAmount : currentUserSubProfit;
+                                    const newTenantProfit = isTenant ? currentTenantProfit + paymentAmount : currentTenantProfit;
+                                    const newUserProfit = !isTenant ? currentUserProfit + paymentAmount : currentUserProfit;
 
                                     await updateDoc(tenantDocRef, {
                                       tenantSubProfit: newTenantSubProfit,
                                       userSubProfit: newUserSubProfit,
-                                      tenantProfit: isTenant ? currentTenantProfit + profitGain : currentTenantProfit,
-                                      userProfit: !isTenant ? currentUserProfit + profitGain : currentUserProfit
+                                      tenantProfit: newTenantProfit,
+                                      userProfit: newUserProfit
                                     });
 
                                     setProfileData(prev => ({
                                       ...prev,
                                       tenantSubProfit: newTenantSubProfit,
                                       userSubProfit: newUserSubProfit,
-                                      tenantProfit: isTenant ? (prev.tenantProfit || 0) + profitGain : prev.tenantProfit,
-                                      userProfit: !isTenant ? (prev.userProfit || 0) + profitGain : prev.userProfit
+                                      tenantProfit: newTenantProfit,
+                                      userProfit: newUserProfit
                                     }));
                                   }
                                 }
@@ -3935,8 +3937,8 @@ export default function App() {
                                 setTenantApprovalPopup({
                                   name: referralView.name,
                                   type: referralView.type,
-                                  profitAmount: profitGain,
-                                  profitLabel: profitLabel
+                                  profitAmount: paymentAmount,
+                                  profitLabel: paymentLabel
                                 });
                               }
                               setReferralView(null);
@@ -4104,28 +4106,28 @@ export default function App() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-black text-gray-300 uppercase tracking-widest">Name</label>
-                    <input disabled={profileLocked} value={profileData.name} onChange={e => setProfileData({...profileData, name: e.target.value})} type="text" className="w-full bg-white/10 text-white p-3 rounded-xl text-sm font-bold border border-white/20 focus:ring-2 focus:ring-white transition-all" />
+                    <input disabled={profileLocked} value={profileData.name} onChange={e => setProfileData({...profileData, name: e.target.value})} type="text" className="w-full bg-white text-black p-3 rounded-xl text-sm font-bold border border-gray-200 focus:ring-2 focus:ring-black transition-all" />
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-black text-gray-300 uppercase tracking-widest">Surname</label>
-                    <input disabled={profileLocked} value={profileData.surname} onChange={e => setProfileData({...profileData, surname: e.target.value})} type="text" className="w-full bg-white/10 text-white p-3 rounded-xl text-sm font-bold border border-white/20 focus:ring-2 focus:ring-white transition-all" />
+                    <input disabled={profileLocked} value={profileData.surname} onChange={e => setProfileData({...profileData, surname: e.target.value})} type="text" className="w-full bg-white text-black p-3 rounded-xl text-sm font-bold border border-gray-200 focus:ring-2 focus:ring-black transition-all" />
                   </div>
                 </div>
 
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black text-gray-300 uppercase tracking-widest flex items-center gap-2"><Phone className="w-3 h-3" /> Contact Information</label>
-                  <input disabled={profileLocked} value={profileData.contact} onChange={e => setProfileData({...profileData, contact: e.target.value})} type="tel" className="w-full bg-white/10 text-white p-3 rounded-xl text-sm font-bold border border-white/20 focus:ring-2 focus:ring-white transition-all" placeholder="+27 ..." />
+                  <input disabled={profileLocked} value={profileData.contact} onChange={e => setProfileData({...profileData, contact: e.target.value})} type="tel" className="w-full bg-white text-black p-3 rounded-xl text-sm font-bold border border-gray-200 focus:ring-2 focus:ring-black transition-all placeholder-gray-400" placeholder="+27 ..." />
                 </div>
 
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black text-gray-300 uppercase tracking-widest flex items-center gap-2"><Mail className="w-3 h-3" /> Email Address</label>
-                  <input disabled={profileLocked} value={profileData.email} onChange={e => setProfileData({...profileData, email: e.target.value})} type="email" className="w-full bg-white/10 text-white p-3 rounded-xl text-sm font-bold border border-white/20 focus:ring-2 focus:ring-white transition-all" />
+                  <input disabled={profileLocked} value={profileData.email} onChange={e => setProfileData({...profileData, email: e.target.value})} type="email" className="w-full bg-white text-black p-3 rounded-xl text-sm font-bold border border-gray-200 focus:ring-2 focus:ring-black transition-all" />
                 </div>
 
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black text-gray-300 uppercase tracking-widest flex items-center gap-2"><MapPinned className="w-3 h-3" /> Home Location</label>
                   <div className="flex gap-2">
-                    <input disabled={profileLocked} value={profileData.location} onChange={e => setProfileData({...profileData, location: e.target.value})} type="text" className="flex-1 bg-white/10 text-white p-3 rounded-xl text-sm font-bold border border-white/20 focus:ring-2 focus:ring-white transition-all" />
+                    <input disabled={profileLocked} value={profileData.location} onChange={e => setProfileData({...profileData, location: e.target.value})} type="text" className="flex-1 bg-white text-black p-3 rounded-xl text-sm font-bold border border-gray-200 focus:ring-2 focus:ring-black transition-all" />
                     {!profileLocked && (
                       <button onClick={autofillLocation} className="p-3 bg-blue-600 text-white rounded-xl active:scale-95 transition-all"><Globe className="w-5 h-5" /></button>
                     )}
@@ -4141,21 +4143,21 @@ export default function App() {
                     disabled={profileLocked} 
                     value={profileData.workTrade} 
                     onChange={e => setProfileData({...profileData, workTrade: e.target.value})}
-                    className="w-full bg-black/60 text-white p-3 rounded-xl text-sm font-bold border border-white/20 focus:ring-2 focus:ring-white transition-all"
+                    className="w-full bg-white text-black p-3 rounded-xl text-sm font-bold border border-gray-200 focus:ring-2 focus:ring-black transition-all"
                   >
-                    <option value="" className="bg-black text-white">Select a trade...</option>
-                    {WORK_TRADES.map(t => <option key={t} value={t} className="bg-black text-white">{t}</option>)}
+                    <option value="" className="bg-white text-black">Select a trade...</option>
+                    {WORK_TRADES.map(t => <option key={t} value={t} className="bg-white text-black">{t}</option>)}
                   </select>
                 </div>
 
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black text-gray-300 uppercase tracking-widest flex items-center gap-2"><Star className="w-3 h-3" /> Work Experience</label>
-                  <textarea disabled={profileLocked} value={profileData.experience} onChange={e => setProfileData({...profileData, experience: e.target.value})} className="w-full bg-white/10 text-white p-3 rounded-xl text-sm font-bold border border-white/20 focus:ring-2 focus:ring-white min-h-[100px] transition-all" placeholder="Describe your experience..." />
+                  <textarea disabled={profileLocked} value={profileData.experience} onChange={e => setProfileData({...profileData, experience: e.target.value})} className="w-full bg-white text-black p-3 rounded-xl text-sm font-bold border border-gray-200 focus:ring-2 focus:ring-black min-h-[100px] transition-all placeholder-gray-400" placeholder="Describe your experience..." />
                 </div>
 
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black text-gray-300 uppercase tracking-widest flex items-center gap-2"><Users className="w-3 h-3" /> Work Reference</label>
-                  <textarea disabled={profileLocked} value={profileData.reference} onChange={e => setProfileData({...profileData, reference: e.target.value})} className="w-full bg-white/10 text-white p-3 rounded-xl text-sm font-bold border border-white/20 focus:ring-2 focus:ring-white min-h-[80px] transition-all" placeholder="Name and contact of reference..." />
+                  <textarea disabled={profileLocked} value={profileData.reference} onChange={e => setProfileData({...profileData, reference: e.target.value})} className="w-full bg-white text-black p-3 rounded-xl text-sm font-bold border border-gray-200 focus:ring-2 focus:ring-black min-h-[80px] transition-all placeholder-gray-400" placeholder="Name and contact of reference..." />
                 </div>
               </div>
 
@@ -4168,7 +4170,7 @@ export default function App() {
                   )}
                 </div>
                 {profileData.socialLinks.map((link, i) => (
-                  <input key={i} disabled={profileLocked} value={link} onChange={e => handleSocialLinkChange(i, e.target.value)} type="url" className="w-full bg-white/10 text-white p-3 rounded-xl text-sm font-bold border border-white/20 focus:ring-2 focus:ring-white transition-all mb-2" placeholder="https://..." />
+                  <input key={i} disabled={profileLocked} value={link} onChange={e => handleSocialLinkChange(i, e.target.value)} type="url" className="w-full bg-white text-black p-3 rounded-xl text-sm font-bold border border-gray-200 focus:ring-2 focus:ring-black transition-all mb-2 placeholder-gray-400" placeholder="https://..." />
                 ))}
               </div>
 
@@ -4282,8 +4284,8 @@ export default function App() {
                                 activatedAt: serverTimestamp(),
                                 subscriptionExpiresAt: subscriptionExpiresAt
                               });
-                              const profitGain = isTenant ? 100 : 25;
-                              const profitLabel = isTenant ? 'Tenant Sub Profit' : 'User Sub Profit';
+                              const paymentAmount = isTenant ? (profileData.tenantSubFee || 100) : (profileData.userSubFee || 25);
+                              const paymentLabel = isTenant ? 'Tenant Sub Payment' : 'User Sub Payment';
                               if (user) {
                                 const tenantDocRef = doc(db, 'users', user.uid);
                                 const tenantDoc = await getDoc(tenantDocRef);
@@ -4294,14 +4296,14 @@ export default function App() {
                                   const currentTenantProfit = tenantData.tenantProfit ?? 0;
                                   const currentUserProfit = tenantData.userProfit ?? 0;
                                   await updateDoc(tenantDocRef, {
-                                    tenantSubProfit: isTenant ? currentTenantSubProfit + profitGain : currentTenantSubProfit,
-                                    userSubProfit: !isTenant ? currentUserSubProfit + profitGain : currentUserSubProfit,
-                                    tenantProfit: isTenant ? currentTenantProfit + profitGain : currentTenantProfit,
-                                    userProfit: !isTenant ? currentUserProfit + profitGain : currentUserProfit
+                                    tenantSubProfit: isTenant ? currentTenantSubProfit + paymentAmount : currentTenantSubProfit,
+                                    userSubProfit: !isTenant ? currentUserSubProfit + paymentAmount : currentUserSubProfit,
+                                    tenantProfit: isTenant ? currentTenantProfit + paymentAmount : currentTenantProfit,
+                                    userProfit: !isTenant ? currentUserProfit + paymentAmount : currentUserProfit
                                   });
                                 }
                               }
-                              setTenantApprovalPopup({ name: referralView.name, type: referralView.type, profitAmount: profitGain, profitLabel });
+                              setTenantApprovalPopup({ name: referralView.name, type: referralView.type, profitAmount: paymentAmount, profitLabel: paymentLabel });
                             }
                             setReferralView(null);
                           } catch (err) { console.warn(err); }
@@ -4365,7 +4367,7 @@ export default function App() {
                     <div className="text-center py-16 bg-white rounded-[2rem] border border-dashed border-gray-200 space-y-2 text-black shadow-xl">
                       <Users className="w-8 h-8 text-gray-400 mx-auto" />
                       <p className="text-gray-700 font-bold uppercase tracking-widest text-xs">No referral applications found</p>
-                      <p className="text-gray-500 text-[11px]">Share your link above to start receiving tenant & user signup commissions!</p>
+                      <p className="text-gray-500 text-[11px]">Share your link above to invite tenant & user signups to your verified network!</p>
                     </div>
                   ) : referrals.map(ref => (
                     <button 
@@ -4598,7 +4600,7 @@ export default function App() {
                   placeholder="e.g. Plumbing Repair at Sandton Office..."
                   value={offerGigTitle}
                   onChange={(e) => setOfferGigTitle(e.target.value)}
-                  className="w-full bg-gray-50 p-3 rounded-xl text-xs font-bold border border-gray-200 outline-none focus:border-black"
+                  className="w-full bg-gray-50 p-3 rounded-xl text-xs font-bold text-black border border-gray-200 outline-none focus:border-black"
                 />
               </div>
 
@@ -4609,7 +4611,7 @@ export default function App() {
                   placeholder="Describe job scope, payment rate (R), location and start time..."
                   value={offerGigDetails}
                   onChange={(e) => setOfferGigDetails(e.target.value)}
-                  className="w-full bg-gray-50 p-3 rounded-xl text-xs font-bold border border-gray-200 outline-none focus:border-black"
+                  className="w-full bg-gray-50 p-3 rounded-xl text-xs font-bold text-black border border-gray-200 outline-none focus:border-black"
                 />
               </div>
 
@@ -4704,14 +4706,14 @@ export default function App() {
                       placeholder="Email address..." 
                       value={authEmail} 
                       onChange={e => setAuthEmail(e.target.value)}
-                      className="w-full bg-gray-50 p-3 rounded-xl text-xs font-bold border border-gray-200 focus:ring-2 focus:ring-black outline-none" 
+                      className="w-full bg-gray-50 p-3 rounded-xl text-xs font-bold text-black border border-gray-200 focus:ring-2 focus:ring-black outline-none" 
                     />
                     <input 
                       type="password" 
                       placeholder="Password..." 
                       value={authPassword} 
                       onChange={e => setAuthPassword(e.target.value)}
-                      className="w-full bg-gray-50 p-3 rounded-xl text-xs font-bold border border-gray-200 focus:ring-2 focus:ring-black outline-none" 
+                      className="w-full bg-gray-50 p-3 rounded-xl text-xs font-bold text-black border border-gray-200 focus:ring-2 focus:ring-black outline-none" 
                     />
                     <button 
                       type="submit" 
@@ -5383,9 +5385,9 @@ export default function App() {
                   <span className="bg-white/20 text-white text-[8px] font-black uppercase px-2.5 py-0.5 rounded-full tracking-widest">
                     🔥 Daily Deal & Promotion Spotlight
                   </span>
-                  <h4 className="text-base font-black tracking-tight">Earn 2x Commission This Weekend!</h4>
+                  <h4 className="text-base font-black tracking-tight">Expand Your Local Network!</h4>
                   <p className="text-[11px] text-white/90 leading-snug">
-                    Boost your earnings as a TimeGiG Tenant. Refer new verified users and tenants during our promotional window to double your rewards.
+                    Grow your network as a TimeGiG Tenant. Refer new verified job seekers and tenants during our promotional window to build your team.
                   </p>
                 </div>
 
@@ -5622,11 +5624,16 @@ export default function App() {
               <p className="text-gray-500 text-sm leading-relaxed">
                 <strong className="text-black">{tenantApprovalPopup.name}</strong> has been successfully verified & activated as a <strong>{tenantApprovalPopup.type}</strong>.
               </p>
-              <div className="bg-gray-50 p-3.5 rounded-xl border border-gray-100 text-xs text-gray-700 font-bold space-y-1">
-                <p className="text-emerald-600 font-black">
-                  💰 +R{(tenantApprovalPopup.profitAmount || (tenantApprovalPopup.type === 'Tenant' ? 100 : 25)).toFixed(2)} {tenantApprovalPopup.profitLabel || (tenantApprovalPopup.type === 'Tenant' ? 'Tenant Sub Profit' : 'User Sub Profit')} Credited
+              <div className="bg-gray-50 p-3.5 rounded-xl border border-gray-100 text-xs text-gray-700 font-bold space-y-2">
+                <p className="text-emerald-600 font-black flex items-center justify-center gap-1">
+                  <CheckCircle2 className="w-4 h-4" /> Account Verified & Active
                 </p>
-                <p className="text-gray-400 text-[10px] font-medium">Added to your {tenantApprovalPopup.profitLabel || 'subscription profit balance'}</p>
+                {tenantApprovalPopup.profitAmount && (
+                  <p className="text-emerald-700 font-black text-xs bg-emerald-50 py-2 px-3 rounded-xl border border-emerald-200">
+                    💰 +R{tenantApprovalPopup.profitAmount} Received ({tenantApprovalPopup.profitLabel}) → Added to Total Profit Balance
+                  </p>
+                )}
+                <p className="text-gray-400 text-[10px] font-medium">Added to your verified referral network & profit balance.</p>
               </div>
             </div>
             <button 
@@ -5656,7 +5663,7 @@ export default function App() {
               <div className="bg-emerald-50/70 p-3.5 rounded-xl border border-emerald-100 text-xs text-emerald-900 font-bold text-left space-y-1.5">
                 <div className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-600 shrink-0" /> Verified badge active on your profile</div>
                 <div className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-600 shrink-0" /> Free to apply for local on-demand gigs</div>
-                <div className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-600 shrink-0" /> Personal referral link to earn passive income</div>
+                <div className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-600 shrink-0" /> Personal referral link to grow your verified network</div>
               </div>
             </div>
             <button 
@@ -5767,7 +5774,7 @@ export default function App() {
                   type="number" 
                   value={showFeesModal.fee} 
                   onChange={e => setShowFeesModal({...showFeesModal, fee: Number(e.target.value)})}
-                  className="w-full bg-gray-50 p-4 rounded-2xl text-lg font-black border-2 border-gray-100 focus:border-black outline-none transition-all"
+                  className="w-full bg-gray-50 p-4 rounded-2xl text-lg font-black text-black border-2 border-gray-100 focus:border-black outline-none transition-all"
                 />
                 <p className="text-[9px] text-gray-400 font-bold uppercase italic">This is the amount referrals will pay for their {showFeesModal.type.toLowerCase()} account.</p>
               </div>
@@ -5778,7 +5785,7 @@ export default function App() {
                   value={profileData.bankTransferDetails} 
                   onChange={e => setProfileData({...profileData, bankTransferDetails: e.target.value})}
                   placeholder="Bank Name:&#10;Account Number:&#10;Branch Code:&#10;Reference: Your Name"
-                  className="w-full bg-gray-50 p-4 rounded-2xl text-sm font-bold border-2 border-gray-100 focus:border-black outline-none transition-all min-h-[120px]"
+                  className="w-full bg-gray-50 p-4 rounded-2xl text-sm font-bold text-black border-2 border-gray-100 focus:border-black outline-none transition-all min-h-[120px]"
                 />
                 <p className="text-[9px] text-gray-400 font-bold uppercase italic">Enter where you want referrals to pay their subscription fees.</p>
               </div>
@@ -5961,7 +5968,7 @@ export default function App() {
               <div className="bg-gray-50 p-3.5 rounded-xl border border-gray-100 text-xs text-gray-700 font-medium text-left space-y-1.5">
                 <div className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-500 shrink-0" /> Find on-demand gigs near you on the live map</div>
                 <div className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-500 shrink-0" /> Fast verification with photo ID & selfie</div>
-                <div className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-500 shrink-0" /> Earn passive income from your own referrals</div>
+                <div className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-500 shrink-0" /> Build and manage your own verified local network</div>
               </div>
             </div>
             <div className="space-y-2">
@@ -6027,12 +6034,12 @@ export default function App() {
           <p className="text-base font-bold text-black mb-1">Click on the map to set the gig location.</p>
           <p className="text-xs text-gray-500 mb-6">Selected: {selectedGigLocation ? `${selectedGigLocation[0].toFixed(4)}, ${selectedGigLocation[1].toFixed(4)}` : 'No location selected'}</p>
           <div className="space-y-4">
-            <input type="text" placeholder="Description" className="w-full p-4 border rounded-xl" id="gig-desc" defaultValue={showGigForm !== true ? showGigForm.description : ''} />
+            <input type="text" placeholder="Description" className="w-full p-4 border rounded-xl text-black font-bold" id="gig-desc" defaultValue={showGigForm !== true ? showGigForm.description : ''} />
             <div className="relative w-full">
               <input 
                 type="text" 
                 placeholder="Type location address..." 
-                className="w-full p-4 border rounded-xl" 
+                className="w-full p-4 border rounded-xl text-black font-bold" 
                 id="gig-address" 
                 value={searchQuery}
                 onChange={handleQueryChange}
@@ -6056,16 +6063,16 @@ export default function App() {
                 </ul>
               )}
             </div>
-            <input type="number" placeholder="Budget" className="w-full p-4 border rounded-xl" id="gig-budget" defaultValue={showGigForm !== true ? showGigForm.budget : ''} />
-            <input type="text" placeholder="Contact Number" className="w-full p-4 border rounded-xl" id="gig-contact" defaultValue={showGigForm !== true ? showGigForm.contactNumber : ''} />
+            <input type="number" placeholder="Budget" className="w-full p-4 border rounded-xl text-black" id="gig-budget" defaultValue={showGigForm !== true ? showGigForm.budget : ''} />
+            <input type="text" placeholder="Contact Number" className="w-full p-4 border rounded-xl text-black" id="gig-contact" defaultValue={showGigForm !== true ? showGigForm.contactNumber : ''} />
             <div className="flex gap-4">
-              <input type="date" className="flex-1 p-4 border rounded-xl" id="gig-date" defaultValue={showGigForm !== true ? showGigForm.date : ''} />
-              <input type="time" className="flex-1 p-4 border rounded-xl" id="gig-time" defaultValue={showGigForm !== true ? showGigForm.time : ''} />
+              <input type="date" className="flex-1 p-4 border rounded-xl text-black" id="gig-date" defaultValue={showGigForm !== true ? showGigForm.date : ''} />
+              <input type="time" className="flex-1 p-4 border rounded-xl text-black" id="gig-time" defaultValue={showGigForm !== true ? showGigForm.time : ''} />
             </div>
-            <label className="flex items-center gap-2">
+            <label className="flex items-center gap-2 text-black">
               <input type="checkbox" id="gig-immediate" defaultChecked={showGigForm !== true ? showGigForm.isImmediate : false} /> Immediate Assistance
             </label>
-            <input type="text" placeholder="Experience Needed" className="w-full p-4 border rounded-xl" id="gig-exp" defaultValue={showGigForm !== true ? showGigForm.experienceNeeded : ''} />
+            <input type="text" placeholder="Experience Needed" className="w-full p-4 border rounded-xl text-black" id="gig-exp" defaultValue={showGigForm !== true ? showGigForm.experienceNeeded : ''} />
             <button
               onClick={async () => {
                 const desc = (document.getElementById('gig-desc') as HTMLInputElement).value;
