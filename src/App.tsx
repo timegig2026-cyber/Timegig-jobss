@@ -4079,6 +4079,26 @@ export default function App() {
             </div>
 
             <div className="p-6 space-y-6 max-w-md mx-auto w-full">
+              {/* Referral Progress Section (For Tenants) */}
+              {(userRole === 'Tenant' || isMainTenant) && (
+                <div className="bg-blue-900/40 backdrop-blur-md p-6 rounded-[2rem] border border-blue-500/20 space-y-4">
+                  <div className="flex items-center gap-2">
+                    <Target className="w-5 h-5 text-blue-400" />
+                    <h3 className="text-white font-black uppercase tracking-widest text-xs">Referral Progress</h3>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-black/20 p-4 rounded-xl border border-white/5">
+                      <p className="text-[10px] text-blue-300 font-bold uppercase">Referral Tenants</p>
+                      <p className="text-2xl font-black text-white">{referrals.filter(r => r.referrerId === user?.uid && r.type === 'Tenant').length} <span className="text-xs text-blue-300 font-bold">/ {stats.tenantSignupTarget}</span></p>
+                    </div>
+                    <div className="bg-black/20 p-4 rounded-xl border border-white/5">
+                      <p className="text-[10px] text-blue-300 font-bold uppercase">User Subscriptions</p>
+                      <p className="text-2xl font-black text-white">{referrals.filter(r => r.referrerId === user?.uid && r.type === 'User').length} <span className="text-xs text-blue-300 font-bold">/ {stats.userSubSignupTarget}</span></p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Form Section */}
               <div className="bg-black/40 backdrop-blur-md p-8 rounded-[2rem] shadow-xl border border-white/10 space-y-6 text-white">
                 <div className="grid grid-cols-2 gap-4">
