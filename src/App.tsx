@@ -2933,7 +2933,7 @@ export default function App() {
                           onClick={() => setOfferGigModalSeeker(seeker)}
                           className={`py-2 bg-black hover:bg-gray-900 text-white rounded-lg font-black text-[10px] uppercase tracking-wider flex items-center justify-center gap-1 shadow-sm transition-all active:scale-95 ${!seeker.contact ? 'col-span-2' : ''}`}
                         >
-                          Offer Gig
+                          Hire Seeker
                         </button>
                       </div>
                     </div>
@@ -4560,7 +4560,7 @@ export default function App() {
               <div className="flex items-center justify-between border-b border-gray-100 pb-3">
                 <div className="flex items-center gap-2">
                   <Send className="w-5 h-5 text-blue-600" />
-                  <h3 className="font-black text-black text-base">Offer Gig to {offerGigModalSeeker.name}</h3>
+                  <h3 className="font-black text-black text-base">Hire Seeker: {offerGigModalSeeker.name}</h3>
                 </div>
                 <button onClick={() => setOfferGigModalSeeker(null)} className="p-1 text-gray-400 hover:text-black">
                   <X className="w-5 h-5" />
@@ -4568,7 +4568,7 @@ export default function App() {
               </div>
 
               <p className="text-xs text-gray-500 font-medium">
-                Send a direct gig invitation message to <span className="font-bold text-black">{offerGigModalSeeker.name} {offerGigModalSeeker.surname || ''}</span> ({offerGigModalSeeker.workTrade || 'Seeker'}).
+                Send a direct hiring invitation message to <span className="font-bold text-black">{offerGigModalSeeker.name} {offerGigModalSeeker.surname || ''}</span> ({offerGigModalSeeker.workTrade || 'Seeker'}).
               </p>
 
               <div className="space-y-2">
@@ -4620,7 +4620,7 @@ export default function App() {
                         isRead: false
                       });
                       playSmoothReceiveSound();
-                      alert(`✅ Gig offer sent successfully to ${offerGigModalSeeker.name}!`);
+                      alert(`✅ Hiring request sent successfully to ${offerGigModalSeeker.name}!`);
                       setOfferGigModalSeeker(null);
                       setOfferGigTitle('');
                       setOfferGigDetails('');
@@ -6109,7 +6109,22 @@ export default function App() {
           <button onClick={() => setSelectedGigView(null)} className="mb-6">
             <X className="w-8 h-8" />
           </button>
-          <h2 className="text-3xl font-black mb-4">Gig Details</h2>
+          
+          <div className="flex items-center gap-4 mb-6">
+            <div className="w-16 h-16 rounded-2xl overflow-hidden bg-gray-100 border border-gray-200 shadow-inner">
+                {selectedGigView.userPhoto ? (
+                    <img src={selectedGigView.userPhoto} alt="Owner" className="w-full h-full object-cover" />
+                ) : (
+                    <div className="w-full h-full flex items-center justify-center text-gray-400 font-black text-2xl">
+                        {(selectedGigView.userName || 'O')[0]}
+                    </div>
+                )}
+            </div>
+            <div>
+                <h2 className="text-2xl font-black mb-1">Gig Details</h2>
+                <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">{selectedGigView.userName || 'Owner'}</p>
+            </div>
+          </div>
           <p className="text-lg mb-2"><strong>Description:</strong> {selectedGigView.description}</p>
           <p className="text-lg mb-2"><strong>Budget:</strong> R{selectedGigView.budget}</p>
           <p className="text-lg mb-2"><strong>Contact:</strong> {selectedGigView.contactNumber}</p>
